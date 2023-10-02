@@ -35,7 +35,7 @@ label_TTKV = [ "a2ff1ceb-280b-410d-9ddc-82cb4a2e2ccb","ff9241a0-a760-49d4-b34d-5
 for i in data_objects:
     for j in i['series']:
         for k in j['images']:
-            path = os.path.join('/workspace/ailab/phucnd/25092023_112_Nhom_benh/masks_MGPKV_new',i['object_id'],j['object_id'])  
+            path = os.path.join('/workspace/ailab/phucnd/25092023_112_Nhom_benh/masks_MGPKV',i['object_id'],j['object_id'])
             if not os.path.exists(path):
                 os.makedirs(path)
             os.chdir(path)
