@@ -1,11 +1,11 @@
 import json
-
+# Combine two json files
 # Paths to the input JSON files
-file1_path = '/workspace/ailab/phucnd/25092023_109_Nhom_chung/json_label_TTKV_final.json'
-file2_path = '/workspace/ailab/phucnd/25092023_112_Nhom_benh/json_label_TTKV_final.json'
+file1_path = '/workspace/ailab/phucnd/04102023_Nhom_benh/json_label_TTKV_final.json'
+file2_path = '/workspace/ailab/phucnd/04102023_Nhom_chung/json_label_TTKV_final.json'
 
 # Path to the output JSON file
-output_path = '/workspace/ailab/phucnd/labels_TTKV_new.json'
+output_path = '/workspace/ailab/phucnd/labels_TTKV.json'
 
 with open(file1_path, 'r') as file1:
     data1 = json.load(file1)
