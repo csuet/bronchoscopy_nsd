@@ -62,20 +62,6 @@ args = parser.parse_args()
 # Clear GPU cache
 torch.cuda.empty_cache()
 
-# configuration
-
-
-# model_type = 'B4'
-
-# init_trainsize = 352
-# batch_size = 9
-
-# repeats = 1
-# n_epochs = 1000
-# if_renew = False
-# data = 'Lung_cancer_lesions'
-
-# label_path = './labels/labels_Lung_cancer_lesions_final.json'
 
 class SplittingDataset(Dataset):
     

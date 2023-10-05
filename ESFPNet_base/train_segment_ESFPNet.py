@@ -64,18 +64,6 @@ args = parser.parse_args()
 torch.cuda.empty_cache()
 
 
-# configuration
-
-# model_type = 'B4'
-
-# init_trainsize = 352
-# batch_size = 8
-
-# repeats = 1
-# n_epochs = 1000
-# if_renew = False#True
-# data = 'Lung_cancer_lesions' # Anatomical_Landmarks, Lung_cancer_lesions
-
 import wandb
 wandb.login()
 wandb.init(project="ESFPNet_segmetation_task_on_" + args.task)
