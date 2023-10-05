@@ -1,4 +1,4 @@
-# Create json files for Anatomical landmark task
+# Create json files for Lesions task
 import json
 import argparse
 from pathlib import Path
@@ -28,7 +28,6 @@ data_objects = json.load(objects)
 labels = open(path_labels)
 data_labels = json.load(labels)
 
-
 path_save = Path(args.path_save)
 
 try:
@@ -36,13 +35,12 @@ try:
         existing_data = json.load(json_file)
 except json.decoder.JSONDecodeError:
     existing_data = []
-# Labels of Anatomical landmark
-label_id = ["b2cc70ea-01f6-4389-a3a3-6222600a445a", "ce08e883-ddd2-4639-aa05-9fdac022f545",
-            "c93010c7-b77b-44a8-8866-7511f989e97a", "7e3b10f1-c8d2-4bf3-8250-1dc5954f2de5",
-            "a9d13324-3c88-4135-88bf-7fbb4ccb4e13", "1578d8da-1512-479c-aed7-ef7cd4fb5541",
-            "c115009a-d19a-4337-9151-0dd20a2562e7", "e572ea16-52e8-4404-b866-363eb3f733ce",
-            "27cc98cd-7cad-4134-bfb5-b2c74af3326e", "ccca7aa2-1593-4e16-a436-38a5516ce433",
-            "0ac584fb-aaeb-44f1-9fa1-fafd973ddac8"]
+
+# Labels of Lesions
+label_id = ["a2ff1ceb-280b-410d-9ddc-82cb4a2e2ccb", "ff9241a0-a760-49d4-b34d-54f20ddedb0c",
+            "b96f104d-948d-4507-8b9c-c1dd0734b759", "4001669a-6f32-4a80-91f1-7c0766f19d29",
+            "cbed49c9-81ec-45d0-b619-a12c57c1770f", "3f2cce73-e832-4e8c-93f3-984b9e48baf3",
+            "cf97e212-5790-4ce0-92b0-5f585cfbbd8c"]
 
 # Create json files contains image and labels of image
 for i in data_annots:
@@ -57,9 +55,9 @@ for i in data_annots:
                     }
                     if new_data not in existing_data:
                         existing_data.append(new_data)
+
                     # Save file
                     with open(path_save, 'w') as json_file:
                         json.dump(existing_data, json_file, ensure_ascii=False)
-
 
 
