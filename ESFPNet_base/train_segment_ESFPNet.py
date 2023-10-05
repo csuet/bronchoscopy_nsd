@@ -31,6 +31,33 @@ from skimage import img_as_ubyte
 
 from scipy.io import loadmat
 import matplotlib.pyplot as plt
+import argparse
+from pathlib import Path
+
+parser = argparse.ArgumentParser("ESFPNet based model")
+parser.add_argument('--label_json_path', type=str, required=True,
+        help='Location of the data directory containing json labels file of each task after combining two json files.json')
+parser.add_argument('--path_cancer_imgs', type=str, required=True,
+        help='Location of the images of cancer cases)')
+parser.add_argument('--path_non_cancer_imgs', type=str, required=True,
+        help='Location of the images of non cancer cases)')
+parser.add_argument('--path_cancer_masks', type=str, required=True,
+        help='Location of the masks of cancer cases for each tasks)')
+parser.add_argument('--path_non_cancer_masks', type=str, required=True,
+        help='Location of the masks of non cancer cases for each tasks)')
+parser.add_argument('--model_type', type=str, default='B4',
+        help='Type of model (default B4)')
+parser.add_argument('--init_trainsize', type=int, default=352,
+        help='Size of image for training (default = 352)')
+parser.add_argument('--batch_size', type=int, default=8,
+        help='Batch size for training (default = 8)')
+parser.add_argument('--n_epochs', type=int, default=500,
+        help='Number of epochs for training (default = 500)')
+parser.add_argument('--if_renew', type=bool, default=True,
+        help='Check if split data to train_val_test')
+parser.add_argument('--task', type=str, default='Anatomical_Landmarks',
+        help='Task: Anatomical_Landmarks or Lung_cancer_lesions')
+args = parser.parse_args()
 
 
 # Clear GPU cache
@@ -39,30 +66,19 @@ torch.cuda.empty_cache()
 
 # configuration
 
-def load_matfile(path):
-    annots = loadmat(path)
-    return annots
+# model_type = 'B4'
 
-def export_image(annots, output_path):
-    image = annots['inst_map']
-    plt.imshow(image, cmap = 'gray')
-    plt.axis('off')
-    plt.savefig(output_path)
-    return
+# init_trainsize = 352
+# batch_size = 8
 
-model_type = 'B4'
-
-init_trainsize = 352
-batch_size = 8
-
-repeats = 1
-n_epochs = 1000
-if_renew = False#True
-data = 'Lung_cancer_lesions' # Anatomical_Landmarks, Lung_cancer_lesions
+# repeats = 1
+# n_epochs = 1000
+# if_renew = False#True
+# data = 'Lung_cancer_lesions' # Anatomical_Landmarks, Lung_cancer_lesions
 
 import wandb
 wandb.login()
-wandb.init(project="ESFPNet_segmetation_task_on_" + data)
+wandb.init(project="ESFPNet_segmetation_task_on_" + args.task)
 
 class SplittingDataset(Dataset):
     """
@@ -83,8 +99,10 @@ class SplittingDataset(Dataset):
             for file in files:
                 if file.endswith('.jpg') or file.endswith('.png'):
                     self.gts.append(os.path.join(root, file))
-
-        self.images = [file for file in self.images if file.replace('/imgs/', '/masks/') in self.gts]
+                    
+        # or /masks_Anatomical_Landmarks
+        mask_dir = "/masks_" + args.task + "/"
+        self.images = [file for file in self.images if file.replace('/imgs/', mask_dir) in self.gts]
         
         self.images = sorted(self.images)
         self.gts = sorted(self.gts)
@@ -128,32 +146,42 @@ class SplittingDataset(Dataset):
 
 
 def splitDataset(renew):
-    split_train_images_save_path = './dataset/' + data + '/train/imgs'
+    split_train_images_save_path = './dataset/' + args.task+ '/train/imgs'
     os.makedirs(split_train_images_save_path, exist_ok=True)
-    split_train_masks_save_path = './dataset/' + data + '/train/masks'
+    split_train_masks_save_path = './dataset/' + args.task + '/train/masks'
     os.makedirs(split_train_masks_save_path, exist_ok=True)
     
-    split_validation_images_save_path = './dataset/' + data + '/val/imgs'
+    split_validation_images_save_path = './dataset/' + args.task + '/val/imgs'
     os.makedirs(split_validation_images_save_path, exist_ok=True)
-    split_validation_masks_save_path ='./dataset/' + data + '/val/masks'
+    split_validation_masks_save_path ='./dataset/' + args.task + '/val/masks'
     os.makedirs(split_validation_masks_save_path, exist_ok=True)
     
-    split_test_images_save_path = './dataset/' + data + '/test/imgs'
+    split_test_images_save_path = './dataset/' + args.task + '/test/imgs'
     os.makedirs(split_test_images_save_path, exist_ok=True)
-    split_test_masks_save_path = './dataset/' + data + '/test/masks'
+    split_test_masks_save_path = './dataset/' + args.task + '/test/masks'
     os.makedirs(split_test_masks_save_path, exist_ok=True)
     
     if renew == True:
-        images_train_path = './Segmentation_' + data + '_data/imgs'
-        masks_train_path = './Segmentation_' + data + '_data/masks'
-        Dataset_part_train = SplittingDataset(images_train_path, masks_train_path)
+        DatasetList = []
+
+        images_train_path_1 = Path(args.path_cancer_imgs)
+        masks_train_path_1 = Path(args.path_cancer_masks)
+        Dataset_part_train_1 = SplittingDataset(images_train_path_1, masks_train_path_1)
+        DatasetList.append(Dataset_part_train_1)
+
+        images_train_path_2 = Path(args.path_non_cancer_imgs)
+        masks_train_path_2 = Path(args.path_non_cancer_masks)
+        Dataset_part_train_2 = SplittingDataset(images_train_path_2, masks_train_path_2)
+        DatasetList.append(Dataset_part_train_2)
+
+        wholeDataset = ConcatDataset([DatasetList[0], DatasetList[1]])
 
         imgs_list = []
         masks_list = []
         labels_list = []
         names_list = []
 
-        for iter in list(Dataset_part_train):
+        for iter in list(wholeDataset):
             imgs_list.append(iter[0])
             masks_list.append(iter[1])
             labels_list.append(iter[2])
@@ -208,7 +236,7 @@ def splitDataset(renew):
 
     return split_train_images_save_path, split_train_masks_save_path, split_validation_images_save_path, split_validation_masks_save_path, split_test_images_save_path, split_test_masks_save_path
 
-train_images_path, train_masks_path, val_images_path, val_masks_path, test_images_path, test_masks_path = splitDataset(if_renew)
+train_images_path, train_masks_path, val_images_path, val_masks_path, test_images_path, test_masks_path = splitDataset(args.if_renew)
 
 
 class PolypDataset(Dataset):
@@ -360,17 +388,17 @@ class ESFPNetStructure(nn.Module):
         super(ESFPNetStructure, self).__init__()
 
         # Backbone
-        if model_type == 'B0':
+        if args.model_type == 'B0':
             self.backbone = mit.mit_b0()
-        if model_type == 'B1':
+        if args.model_type == 'B1':
             self.backbone = mit.mit_b1()
-        if model_type == 'B2':
+        if args.model_type == 'B2':
             self.backbone = mit.mit_b2()
-        if model_type == 'B3':
+        if args.model_type == 'B3':
             self.backbone = mit.mit_b3()
-        if model_type == 'B4':
+        if args.model_type == 'B4':
             self.backbone = mit.mit_b4()
-        if model_type == 'B5':
+        if args.model_type == 'B5':
             self.backbone = mit.mit_b5()
 
         self._init_weights()  # load pretrain
@@ -396,17 +424,17 @@ class ESFPNetStructure(nn.Module):
 
     def _init_weights(self):
 
-        if model_type == 'B0':
+        if args.model_type == 'B0':
             pretrained_dict = torch.load('./Pretrained/mit_b0.pth')
-        if model_type == 'B1':
+        if args.model_type == 'B1':
             pretrained_dict = torch.load('./Pretrained/mit_b1.pth')
-        if model_type == 'B2':
+        if args.model_type == 'B2':
             pretrained_dict = torch.load('./Pretrained/mit_b2.pth')
-        if model_type == 'B3':
+        if args.model_type == 'B3':
             pretrained_dict = torch.load('./Pretrained/mit_b3.pth')
-        if model_type == 'B4':
+        if args.model_type == 'B4':
             pretrained_dict = torch.load('./Pretrained/mit_b4.pth')
-        if model_type == 'B5':
+        if args.model_type == 'B5':
             pretrained_dict = torch.load('./Pretrained/mit_b5.pth')
 
 
@@ -508,7 +536,7 @@ def evaluate():
 
     smooth = 1e-4
 
-    val_loader = test_dataset(val_images_path + '/',val_masks_path + '/' ,init_trainsize) #
+    val_loader = test_dataset(val_images_path + '/',val_masks_path + '/' ,args.init_trainsize) #
     for i in range(val_loader.size):
         image, gt= val_loader.load_data()#
         gt = np.asarray(gt, np.float32)
@@ -553,8 +581,8 @@ def training_loop(n_epochs, ESFPNet_optimizer, numIters):
     coeff_max = 0
     epoch_loss_all1 = 0.0
     # set up data and then train
-    trainDataset = PolypDataset(train_images_path + '/', train_masks_path + '/', trainsize=init_trainsize, augmentations = True) #
-    train_loader = DataLoader(dataset=trainDataset,batch_size=batch_size,shuffle=True)
+    trainDataset = PolypDataset(train_images_path + '/', train_masks_path + '/', trainsize=args.init_trainsize, augmentations = True) #
+    train_loader = DataLoader(dataset=trainDataset,batch_size=args.batch_size,shuffle=True)
 
     iter_X = iter(train_loader)
     steps_per_epoch = len(iter_X)
@@ -621,7 +649,7 @@ def training_loop(n_epochs, ESFPNet_optimizer, numIters):
 
 import torch.optim as optim
 
-for i in range(repeats):
+for i in range(1):
     # Clear GPU cache
     torch.cuda.empty_cache()
     ESFPNet = ESFPNetStructure()
@@ -638,7 +666,7 @@ for i in range(repeats):
 
     ESFPNet_optimizer = optim.AdamW(ESFPNet.parameters(), lr=lr)
 
-    losses, coeff_max = training_loop(n_epochs, ESFPNet_optimizer, i+1)
+    losses, coeff_max = training_loop(args.n_epochs, ESFPNet_optimizer, i+1)
 
     # plt.plot(losses)
 

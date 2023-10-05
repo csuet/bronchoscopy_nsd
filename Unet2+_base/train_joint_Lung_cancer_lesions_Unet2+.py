@@ -4,30 +4,45 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset,DataLoader,ConcatDataset
-from torch.autograd import Variable
 import json
-import torchvision
-import torchvision.datasets as datasets
 import torchvision.transforms as transforms
 
 #from skimage import io, transform
 from PIL import Image
 
+# visualizing data
+import matplotlib.pyplot as plt
+import numpy as np
 import wandb
 wandb.login()
 wandb.init(project="Unet2+_multimodel_Lung_cancer_lesions")
 
-# visualizing data
-import matplotlib.pyplot as plt
-import numpy as np
-import warnings
-
-# load dataset information~
-import yaml
-
 # image writing
 import imageio
 from skimage import img_as_ubyte
+import argparse
+from pathlib import Path
+
+parser = argparse.ArgumentParser("ESFPNet based model")
+parser.add_argument('--label_json_path', type=str, required=True,
+        help='Location of the data directory containing json labels file of each task after combining two json files.json')
+parser.add_argument('--path_cancer_imgs', type=str, required=True,
+        help='Location of the images of cancer cases)')
+parser.add_argument('--path_non_cancer_imgs', type=str, required=True,
+        help='Location of the images of non cancer cases)')
+parser.add_argument('--path_cancer_masks', type=str, required=True,
+        help='Location of the masks of cancer cases for each tasks)')
+parser.add_argument('--path_non_cancer_masks', type=str, required=True,
+        help='Location of the masks of non cancer cases for each tasks)')
+parser.add_argument('--init_trainsize', type=int, default=352,
+        help='Size of image for training (default = 352)')
+parser.add_argument('--batch_size', type=int, default=8,
+        help='Batch size for training (default = 8)')
+parser.add_argument('--n_epochs', type=int, default=500,
+        help='Number of epochs for training (default = 500)')
+parser.add_argument('--if_renew', type=bool, default=True,
+        help='Check if split data to train_val_test')
+args = parser.parse_args()
 
 from sklearn.model_selection import train_test_split
 
@@ -37,19 +52,6 @@ import matplotlib.pyplot as plt
 # Clear GPU cache
 torch.cuda.empty_cache()
 
-# configuration
-
-model_type = 'B4'
-
-init_trainsize = 352
-batch_size = 5
-
-
-repeats = 1
-n_epochs = 1000
-if_renew = False
-
-label_path = '/home/thuytt/dungpt/bronchoscopy_nsd/ESFPNet/labels/labels_Lung_cancer_lesions_final.json'
 
 class SplittingDataset(Dataset):
     """
@@ -57,7 +59,7 @@ class SplittingDataset(Dataset):
     """
     def __init__(self, image_root, gt_root):
 
-        with open(label_path, 'r') as f:
+        with open(args.label_json_path, 'r') as f:
             data = json.load(f)
 
         object_id = [id['object_id'] for id in data]
@@ -77,7 +79,7 @@ class SplittingDataset(Dataset):
                 if file.endswith('.jpg') or file.endswith('.png'):
                     if os.path.splitext(os.path.basename(os.path.join(root, file)))[0] in object_id:
                         self.gts.append(os.path.join(root, file))
-        self.images = [file for file in self.images if file.replace('/imgs/', '/masks/') in self.gts]
+        self.images = [file for file in self.images if file.replace('/imgs/', '/masks_Lesions/') in self.gts]
         
         self.images = sorted(self.images)
         self.gts = sorted(self.gts)
@@ -94,7 +96,7 @@ class SplittingDataset(Dataset):
 
         file_name = os.path.splitext(os.path.basename(self.images[index]))[0]
 
-        with open(label_path, 'r') as f:
+        with open(args.label_json_path, 'r') as f:
             data = json.load(f)
 
         label_list = ['Muscosal erythema', 'Anthrocosis', 'Stenosis', 'Mucosal edema of carina', 'Mucosal infiltration', 'Vascular growth', 'Tumor']
@@ -136,34 +138,43 @@ class SplittingDataset(Dataset):
 
 def splitDataset(renew):
     
-    split_train_images_save_path = '/home/thuytt/dungpt/bronchoscopy_nsd/ESFPNet/dataset/Lung_cancer_lesions/train/imgs'
+    split_train_images_save_path = './dataset/Lung_cancer_lesions/train/imgs'
     os.makedirs(split_train_images_save_path, exist_ok=True)
-    split_train_masks_save_path = '/home/thuytt/dungpt/bronchoscopy_nsd/ESFPNet/dataset/Lung_cancer_lesions/train/masks'
+    split_train_masks_save_path = './dataset/Lung_cancer_lesions/train/masks'
     os.makedirs(split_train_masks_save_path, exist_ok=True)
     
-    split_validation_images_save_path = '/home/thuytt/dungpt/bronchoscopy_nsd/ESFPNet/dataset/Lung_cancer_lesions/val/imgs'
+    split_validation_images_save_path = './dataset/Lung_cancer_lesions/val/imgs'
     os.makedirs(split_validation_images_save_path, exist_ok=True)
-    split_validation_masks_save_path ='/home/thuytt/dungpt/bronchoscopy_nsd/ESFPNet/dataset/Lung_cancer_lesions/val/masks'
+    split_validation_masks_save_path ='.//dataset/Lung_cancer_lesions/val/masks'
     os.makedirs(split_validation_masks_save_path, exist_ok=True)
     
-    split_test_images_save_path = '/home/thuytt/dungpt/bronchoscopy_nsd/ESFPNet/dataset/Lung_cancer_lesions/test/imgs'
+    split_test_images_save_path = './dataset/Lung_cancer_lesions/test/imgs'
     os.makedirs(split_test_images_save_path, exist_ok=True)
-    split_test_masks_save_path = '/home/thuytt/dungpt/bronchoscopy_nsd/ESFPNet/dataset/Lung_cancer_lesions/test/masks'
+    split_test_masks_save_path = './dataset/Lung_cancer_lesions/test/masks'
     os.makedirs(split_test_masks_save_path, exist_ok=True)
     
     if renew == True:
     
         DatasetList = []
 
-        images_train_path = '/home/thuytt/dungpt/ESFPNet/Segmentation_Lung_cancer_lesions_data/imgs'
-        masks_train_path = '/home/thuytt/dungpt/ESFPNet/Segmentation_Lung_cancer_lesions_data/masks'
-        Dataset_part_train = SplittingDataset(images_train_path, masks_train_path)
+        images_train_path_1 = Path(args.path_cancer_imgs)
+        masks_train_path_1 = Path(args.path_cancer_masks)
+        Dataset_part_train_1 = SplittingDataset(images_train_path_1, masks_train_path_1)
+        DatasetList.append(Dataset_part_train_1)
+
+        images_train_path_2 = Path(args.path_non_cancer_imgs)
+        masks_train_path_2 = Path(args.path_non_cancer_masks)
+        Dataset_part_train_2 = SplittingDataset(images_train_path_2, masks_train_path_2)
+        DatasetList.append(Dataset_part_train_2)
+
+        wholeDataset = ConcatDataset([DatasetList[0], DatasetList[1]])
+
         imgs_list = []
         masks_list = []
         labels_list = []
         names_list = []
 
-        for iter in list(Dataset_part_train):
+        for iter in list(wholeDataset):
             imgs_list.append(iter[0])
             masks_list.append(iter[1])
             labels_list.append(iter[2])
@@ -222,7 +233,7 @@ def splitDataset(renew):
             imageio.imwrite(split_test_masks_save_path + '/' + name, img_as_ubyte(gt_data))
     return split_train_images_save_path, split_train_masks_save_path, split_validation_images_save_path, split_validation_masks_save_path, split_test_images_save_path, split_test_masks_save_path
 
-train_images_path, train_masks_path, val_images_path, val_masks_path, test_images_path, test_masks_path = splitDataset(if_renew)
+train_images_path, train_masks_path, val_images_path, val_masks_path, test_images_path, test_masks_path = splitDataset(args.if_renew)
 
 class PolypDataset(Dataset):
     """
@@ -277,7 +288,7 @@ class PolypDataset(Dataset):
         
         file_name = os.path.splitext(os.path.basename(self.images[index]))[0]
         
-        with open(label_path, 'r') as f:
+        with open(args.label_json_path, 'r') as f:
             data = json.load(f)
 
         label_list = ['Muscosal erythema', 'Anthrocosis', 'Stenosis', 'Mucosal edema of carina', 'Mucosal infiltration', 'Vascular growth', 'Tumor']
@@ -361,7 +372,7 @@ class test_dataset:
         gt = self.binary_loader(self.gts[self.index])
         file_name = os.path.splitext(os.path.basename(self.images[self.index]))[0]
 
-        with open(label_path, 'r') as f:
+        with open(args.label_json_path, 'r') as f:
             data = json.load(f)
 
         label_list = ['Muscosal erythema', 'Anthrocosis', 'Stenosis', 'Mucosal edema of carina', 'Mucosal infiltration', 'Vascular growth', 'Tumor']
@@ -385,9 +396,6 @@ class test_dataset:
         with open(path, 'rb') as f:
             img = Image.open(f)
             return img.convert('L')
-        
-from collections import OrderedDict
-import copy
 
 from layers import unetConv2, unetUp_origin
 from init_weights import init_weights
@@ -405,7 +413,6 @@ class UNet_2Plus(nn.Module):
 
         # filters = [32, 64, 128, 256, 512]
         filters = [64, 128, 256, 512, 1024]
-        # filters = [int(x / self.feature_scale) for x in filters]
 
         # downsampling
         self.conv00 = unetConv2(self.in_channels, filters[0], self.is_batchnorm)
@@ -541,7 +548,7 @@ def evaluate():
 
     smooth = 1e-4
 
-    val_loader = test_dataset(val_images_path + '/',val_masks_path + '/', label_path ,init_trainsize) #
+    val_loader = test_dataset(val_images_path + '/',val_masks_path + '/', args.label_json_path ,args.init_trainsize) #
     for i in range(val_loader.size):
         image, gt, labels_tensor = val_loader.load_data()#
         gt = np.asarray(gt, np.float32)
@@ -549,7 +556,6 @@ def evaluate():
 
         image = image.cuda()
         labels_tensor = labels_tensor.cuda()
-        #label = label.cuda()
 
         pred1, pred2= ESFPNet(image)
         pred2 = np.squeeze(pred2)
@@ -619,8 +625,8 @@ def evaluate():
 
 def training_loop(n_epochs, ESFPNet_optimizer, numIters):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    trainDataset = PolypDataset(train_images_path + '/', train_masks_path + '/',label_path, trainsize=init_trainsize, augmentations = True) #
-    train_loader = DataLoader(dataset=trainDataset,batch_size=batch_size,shuffle=True)
+    trainDataset = PolypDataset(train_images_path + '/', train_masks_path + '/',args.label_json_path, trainsize=args.init_trainsize, augmentations = True) #
+    train_loader = DataLoader(dataset=trainDataset,batch_size=args.batch_size,shuffle=True)
 
     segmentation_max = 0
     classification_max = 0
@@ -646,7 +652,7 @@ def training_loop(n_epochs, ESFPNet_optimizer, numIters):
 
             ESFPNet_optimizer.zero_grad()
             pred_masks, pred_labels = ESFPNet(images)
-            #classification
+            
             pred_labels = np.squeeze(pred_labels)
             loss_seg_train = ange_structure_loss(pred_masks, masks)
             loss_class_train = loss_class(pred_labels, labels_tensor)
@@ -698,42 +704,34 @@ def training_loop(n_epochs, ESFPNet_optimizer, numIters):
         print("acc_train", overall_accuracy.item())
         wandb.log({"Acc_classification_train" : overall_accuracy*100})
 
-        # print("-Training dataset. Got %d out of %d images correctly (%.3f%%). Epoch loss: %.3f"
-        #       % (total_correct_predictions, total, overall_accuracy, epoch_loss))
-
         data = 'Lung_cancer_lesions_multimodel'
         segmentation_dice, classification_acc = evaluate()
         if segmentation_max < segmentation_dice:
             segmentation_max = segmentation_dice
             save_model_path = './SaveModel/'+ data+ '/'
             os.makedirs(save_model_path, exist_ok=True)
-            print(save_model_path)
             torch.save(ESFPNet, save_model_path + '/Segmentation_best.pt')
-            #print('Save Learning Ability Optimized Model at Epoch [{:5d}/{:5d}]'.format(num_epoch, n_epochs))
 
         if classification_max < classification_acc:
             classification_max = classification_acc
             save_model_path = './SaveModel/'+ data+ '/'
             os.makedirs(save_model_path, exist_ok=True)
-            print(save_model_path)
             torch.save(ESFPNet, save_model_path + '/Classification_best.pt')
-            #print('Save Learning Ability Optimized Model at Epoch [{:5d}/{:5d}]'.format(num_epoch, n_epochs))
         
         mean_eva = (segmentation_dice + classification_acc) / 2
         if mean_max < mean_eva:
             mean_max = mean_eva
             save_model_path = './SaveModel/'+ data+ '/'
             os.makedirs(save_model_path, exist_ok=True)
-            print(save_model_path)
             torch.save(ESFPNet, save_model_path + '/Mean_best.pt')
-            #print('Save Learning Ability Optimized Model at Epoch [{:5d}/{:5d}]'.format(num_epoch, n_epochs))
+
         save_model_path = './SaveModel/'+ data+ '/'
         torch.save(ESFPNet, save_model_path + '/Epoch.pt')
         
 
 import torch.optim as optim
 
-for i in range(repeats):
+for i in range(1):
     # Clear GPU cache
     torch.cuda.empty_cache()
 
@@ -750,17 +748,6 @@ for i in range(repeats):
     lr=0.0001 #0.0001
 
     ESFPNet_optimizer = optim.AdamW(ESFPNet.parameters(), lr=lr)
-
-    #losses, coeff_max = training_loop(n_epochs, ESFPNet_optimizer, i+1)
-    training_loop(n_epochs, ESFPNet_optimizer, i+1)
-    # plt.plot(losses)
-
-    # print('#####################################################################################')
-    # print('optimize_m_dice: {:6.6f}'.format(coeff_max))
-
-    # saveResult(i+1)
-    # print('#####################################################################################')
-    # print('saved the results')
-    # print('#####################################################################################')
-
+    training_loop(args.n_epochs, ESFPNet_optimizer, i+1)
+   
 wandb.finish()

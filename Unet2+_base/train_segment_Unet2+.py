@@ -4,10 +4,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset,DataLoader,ConcatDataset
-from torch.autograd import Variable
-
-import torchvision
-import torchvision.datasets as datasets
 import torchvision.transforms as transforms
 
 
@@ -17,12 +13,9 @@ from PIL import Image
 # visualizing data
 import matplotlib.pyplot as plt
 import numpy as np
-import warnings
 
 from sklearn.model_selection import train_test_split
 
-# load dataset information
-import yaml
 
 # image writing
 import imageio
@@ -31,35 +24,35 @@ from skimage import img_as_ubyte
 
 from scipy.io import loadmat
 import matplotlib.pyplot as plt
+import argparse
+from pathlib import Path
 
+parser = argparse.ArgumentParser("ESFPNet based model")
+parser.add_argument('--label_json_path', type=str, required=True,
+        help='Location of the data directory containing json labels file of each task after combining two json files.json')
+parser.add_argument('--path_cancer_imgs', type=str, required=True,
+        help='Location of the images of cancer cases)')
+parser.add_argument('--path_non_cancer_imgs', type=str, required=True,
+        help='Location of the images of non cancer cases)')
+parser.add_argument('--path_cancer_masks', type=str, required=True,
+        help='Location of the masks of cancer cases for each tasks)')
+parser.add_argument('--path_non_cancer_masks', type=str, required=True,
+        help='Location of the masks of non cancer cases for each tasks)')
+parser.add_argument('--init_trainsize', type=int, default=352,
+        help='Size of image for training (default = 352)')
+parser.add_argument('--batch_size', type=int, default=8,
+        help='Batch size for training (default = 8)')
+parser.add_argument('--n_epochs', type=int, default=500,
+        help='Number of epochs for training (default = 500)')
+parser.add_argument('--if_renew', type=bool, default=True,
+        help='Check if split data to train_val_test')
+parser.add_argument('--task', type=str, default='Anatomical_Landmarks',
+        help='Task: Anatomical_Landmarks or Lung_cancer_lesions')
+args = parser.parse_args()
 
 
 # Clear GPU cache
 torch.cuda.empty_cache()
-
-
-# configuration
-
-def load_matfile(path):
-    annots = loadmat(path)
-    return annots
-
-def export_image(annots, output_path):
-    image = annots['inst_map']
-    plt.imshow(image, cmap = 'gray')
-    plt.axis('off')
-    plt.savefig(output_path)
-    return
-
-model_type = 'B4'
-
-init_trainsize = 352
-batch_size = 4
-
-repeats = 1
-n_epochs = 1000
-if_renew = False#True
-data = 'Lung_cancer_lesions' # Anatomical_Landmarks, Lung_cancer_lesions
 
 import wandb
 wandb.login()
@@ -85,7 +78,8 @@ class SplittingDataset(Dataset):
                 if file.endswith('.jpg') or file.endswith('.png'):
                     self.gts.append(os.path.join(root, file))
 
-        self.images = [file for file in self.images if file.replace('/imgs/', '/masks/') in self.gts]
+        mask_dir = "/masks_" + args.task + "/"
+        self.images = [file for file in self.images if file.replace('/imgs/', mask_dir) in self.gts]
         
         self.images = sorted(self.images)
         self.gts = sorted(self.gts)
@@ -146,16 +140,26 @@ def splitDataset(renew):
     
     if renew == True:
     
-        images_train_path = './Segmentation_Lung_cancer_lesions_data/imgs'
-        masks_train_path = './Segmentation_Lung_cancer_lesions_data/masks'
-        Dataset_part_train = SplittingDataset(images_train_path, masks_train_path)
+        DatasetList = []
+
+        images_train_path_1 = Path(args.path_cancer_imgs)
+        masks_train_path_1 = Path(args.path_cancer_masks)
+        Dataset_part_train_1 = SplittingDataset(images_train_path_1, masks_train_path_1)
+        DatasetList.append(Dataset_part_train_1)
+
+        images_train_path_2 = Path(args.path_non_cancer_imgs)
+        masks_train_path_2 = Path(args.path_non_cancer_masks)
+        Dataset_part_train_2 = SplittingDataset(images_train_path_2, masks_train_path_2)
+        DatasetList.append(Dataset_part_train_2)
+
+        wholeDataset = ConcatDataset([DatasetList[0], DatasetList[1]])
 
         imgs_list = []
         masks_list = []
         labels_list = []
         names_list = []
 
-        for iter in list(Dataset_part_train):
+        for iter in list(wholeDataset):
             imgs_list.append(iter[0])
             masks_list.append(iter[1])
             labels_list.append(iter[2])
@@ -210,7 +214,7 @@ def splitDataset(renew):
 
     return split_train_images_save_path, split_train_masks_save_path, split_validation_images_save_path, split_validation_masks_save_path, split_test_images_save_path, split_test_masks_save_path
 
-train_images_path, train_masks_path, val_images_path, val_masks_path, test_images_path, test_masks_path = splitDataset(if_renew)
+train_images_path, train_masks_path, val_images_path, val_masks_path, test_images_path, test_masks_path = splitDataset(args.if_renew)
 
 
 class PolypDataset(Dataset):
@@ -348,9 +352,6 @@ class test_dataset:
         with open(path, 'rb') as f:
             img = Image.open(f)
             return img.convert('L')
-        
-from collections import OrderedDict
-import copy
 
 from layers import unetConv2, unetUp_origin
 from init_weights import init_weights
@@ -368,7 +369,6 @@ class UNet_2Plus(nn.Module):
 
         # filters = [32, 64, 128, 256, 512]
         filters = [64, 128, 256, 512, 1024]
-        # filters = [int(x / self.feature_scale) for x in filters]
 
         # downsampling
         self.conv00 = unetConv2(self.in_channels, filters[0], self.is_batchnorm)
@@ -471,8 +471,6 @@ def dice_loss_coff(pred, target, smooth = 0.0001):
     
     return loss.sum()/num
 
-from torch.autograd import Variable
-
 def evaluate():
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     ESFPNet.eval()
@@ -481,15 +479,13 @@ def evaluate():
 
     smooth = 1e-4
 
-    val_loader = test_dataset(val_images_path + '/',val_masks_path + '/' ,init_trainsize) #
+    val_loader = test_dataset(val_images_path + '/',val_masks_path + '/' ,args.init_trainsize) #
     for i in range(val_loader.size):
         image, gt= val_loader.load_data()#
         gt = np.asarray(gt, np.float32)
         gt /= (gt.max() + 1e-8)
 
         image = image.cuda()
-        
-        #label = label.cuda()
 
         pred1= ESFPNet(image)
         pred1 = F.upsample(pred1, size=gt.shape, mode='bilinear', align_corners=False)
@@ -524,8 +520,8 @@ def training_loop(n_epochs, ESFPNet_optimizer, numIters):
     coeff_max = 0
 
     # set up data and then train
-    trainDataset = PolypDataset(train_images_path + '/', train_masks_path + '/', trainsize=init_trainsize, augmentations = True) #
-    train_loader = DataLoader(dataset=trainDataset,batch_size=batch_size,shuffle=True)
+    trainDataset = PolypDataset(train_images_path + '/', train_masks_path + '/', trainsize=args.init_trainsize, augmentations = True) #
+    train_loader = DataLoader(dataset=trainDataset,batch_size=args.batch_size,shuffle=True)
 
     iter_X = iter(train_loader)
     steps_per_epoch = len(iter_X)
@@ -581,7 +577,6 @@ def training_loop(n_epochs, ESFPNet_optimizer, numIters):
                 coeff_max = validation_coeff
                 save_model_path = './SaveModel/' + data +'/'
                 os.makedirs(save_model_path, exist_ok=True)
-                print(save_model_path)
                 torch.save(ESFPNet, save_model_path + '/Segmentation_model.pt')
                 print('Save Learning Ability Optimized Model at Epoch [{:5d}/{:5d}]'.format(num_epoch, n_epochs))
                 
@@ -590,7 +585,7 @@ def training_loop(n_epochs, ESFPNet_optimizer, numIters):
 
 import torch.optim as optim
 
-for i in range(repeats):
+for i in range(1):
     # Clear GPU cache
     torch.cuda.empty_cache()
     ESFPNet = UNet_2Plus()
@@ -607,15 +602,6 @@ for i in range(repeats):
 
     ESFPNet_optimizer = optim.AdamW(ESFPNet.parameters(), lr=lr)
 
-    losses, coeff_max = training_loop(n_epochs, ESFPNet_optimizer, i+1)
+    losses, coeff_max = training_loop(args.n_epochs, ESFPNet_optimizer, i+1)
 
-    # plt.plot(losses)
-
-    # print('#####################################################################################')
-    # print('optimize_m_dice: {:6.6f}'.format(coeff_max))
-
-    # saveResult(i+1)
-    # print('#####################################################################################')
-    # print('saved the results')
-    # print('#####################################################################################')
 wandb.finish()

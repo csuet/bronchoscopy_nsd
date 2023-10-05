@@ -33,6 +33,31 @@ from sklearn.model_selection import train_test_split
 
 from scipy.io import loadmat
 import matplotlib.pyplot as plt
+import argparse
+from pathlib import Path
+
+parser = argparse.ArgumentParser("ESFPNet based model")
+parser.add_argument('--label_json_path', type=str, required=True,
+        help='Location of the data directory containing json labels file of each task after combining two json files.json')
+parser.add_argument('--path_cancer_imgs', type=str, required=True,
+        help='Location of the images of cancer cases)')
+parser.add_argument('--path_non_cancer_imgs', type=str, required=True,
+        help='Location of the images of non cancer cases)')
+parser.add_argument('--path_cancer_masks', type=str, required=True,
+        help='Location of the masks of cancer cases for each tasks)')
+parser.add_argument('--path_non_cancer_masks', type=str, required=True,
+        help='Location of the masks of non cancer cases for each tasks)')
+parser.add_argument('--model_type', type=str, default='B4',
+        help='Type of model (default B4)')
+parser.add_argument('--init_trainsize', type=int, default=352,
+        help='Size of image for training (default = 352)')
+parser.add_argument('--batch_size', type=int, default=8,
+        help='Batch size for training (default = 8)')
+parser.add_argument('--n_epochs', type=int, default=500,
+        help='Number of epochs for training (default = 500)')
+parser.add_argument('--if_renew', type=bool, default=False,
+        help='Check if split data to train_val_test')
+args = parser.parse_args()
 
 # Clear GPU cache
 torch.cuda.empty_cache()
@@ -40,24 +65,23 @@ torch.cuda.empty_cache()
 # configuration
 
 
-model_type = 'B4'
+# model_type = 'B4'
 
-init_trainsize = 352
-batch_size = 9
+# init_trainsize = 352
+# batch_size = 9
 
-repeats = 1
-n_epochs = 1000
-if_renew = False
+# repeats = 1
+# n_epochs = 1000
+# if_renew = False
+# data = 'Lung_cancer_lesions'
 
-label_path = './labels/labels_Lung_cancer_lesions_final.json'
+# label_path = './labels/labels_Lung_cancer_lesions_final.json'
 
 class SplittingDataset(Dataset):
-    """
-    dataloader for polyp segmentation tasks
-    """
+    
     def __init__(self, image_root, gt_root):
 
-        with open(label_path, 'r') as f:
+        with open(args.label_json_path, 'r') as f:
             data = json.load(f)
 
         object_id = [id['object_id'] for id in data]
@@ -77,7 +101,7 @@ class SplittingDataset(Dataset):
                 if file.endswith('.jpg') or file.endswith('.png'):
                     if os.path.splitext(os.path.basename(os.path.join(root, file)))[0] in object_id:
                         self.gts.append(os.path.join(root, file))
-        self.images = [file for file in self.images if file.replace('/imgs/', '/masks/') in self.gts]
+        self.images = [file for file in self.images if file.replace('/imgs/', '/masks_Lung_cancer_lesions/') in self.gts]
         
         self.images = sorted(self.images)
         self.gts = sorted(self.gts)
@@ -90,8 +114,23 @@ class SplittingDataset(Dataset):
         image = self.rgb_loader(self.images[index])
         gt = self.binary_loader(self.gts[index])
         
-        name = self.images[index].split('/')[-1]
-        return self.transform(image), self.transform(gt), name
+        name_image = self.images[index].split('/')[-1]
+
+        file_name = os.path.splitext(os.path.basename(self.images[index]))[0]
+
+        with open(args.label_json_path, 'r') as f:
+            data = json.load(f)
+
+        label_list = ['Muscosal erythema', 'Anthrocosis', 'Stenosis', 'Mucosal edema of carina', 'Mucosal infiltration', 'Vascular growth', 'Tumor']
+        label_name = [file['label_name'] for file in data if file['object_id'] == file_name]
+        
+        label_tensor = torch.zeros([7])
+        for name in label_name:
+            label_tensor[label_list.index(name)] = 1
+        
+        str_label = str(label_tensor)
+
+        return self.transform(image), self.transform(gt), str_label, name_image
 
     def filter_files(self):
         assert len(self.images) == len(self.gts)
@@ -119,6 +158,7 @@ class SplittingDataset(Dataset):
     def __len__(self):
         return self.size
 
+
 def splitDataset(renew):
     
     split_train_images_save_path = './dataset/Lung_cancer_lesions/train/imgs'
@@ -140,16 +180,24 @@ def splitDataset(renew):
     
         DatasetList = []
 
-        images_train_path = '/workspace/ailab/phucnd/05092023_18_Nhom_benh/imgs'
-        masks_train_path = '/workspace/ailab/phucnd/05092023_18_Nhom_benh/masks'
-        Dataset_part_train = SplittingDataset(images_train_path, masks_train_path)
-        
+        images_train_path_1 = Path(args.path_cancer_imgs)
+        masks_train_path_1 = Path(args.path_cancer_masks)
+        Dataset_part_train_1 = SplittingDataset(images_train_path_1, masks_train_path_1)
+        DatasetList.append(Dataset_part_train_1)
+
+        images_train_path_2 = Path(args.path_non_cancer_imgs)
+        masks_train_path_2 = Path(args.path_non_cancer_masks)
+        Dataset_part_train_2 = SplittingDataset(images_train_path_2, masks_train_path_2)
+        DatasetList.append(Dataset_part_train_2)
+
+        wholeDataset = ConcatDataset([DatasetList[0], DatasetList[1]])
+
         imgs_list = []
         masks_list = []
         labels_list = []
         names_list = []
 
-        for iter in list(Dataset_part_train):
+        for iter in list(wholeDataset):
             imgs_list.append(iter[0])
             masks_list.append(iter[1])
             labels_list.append(iter[2])
@@ -210,7 +258,7 @@ def splitDataset(renew):
     
     return split_train_images_save_path, split_train_masks_save_path, split_validation_images_save_path, split_validation_masks_save_path, split_test_images_save_path, split_test_masks_save_path
 
-train_images_path, train_masks_path, val_images_path, val_masks_path, test_images_path, test_masks_path = splitDataset(if_renew)
+train_images_path, train_masks_path, val_images_path, val_masks_path, test_images_path, test_masks_path = splitDataset(args.if_renew)
 
 class PolypDataset(Dataset):
     """
@@ -266,7 +314,7 @@ class PolypDataset(Dataset):
         
         file_name = os.path.splitext(os.path.basename(self.images[index]))[0]
         
-        with open(label_path, 'r') as f:
+        with open(args.label_json_path, 'r') as f:
             data = json.load(f)
 
         label_list = ['Muscosal erythema', 'Anthrocosis', 'Stenosis', 'Mucosal edema of carina', 'Mucosal infiltration', 'Vascular growth', 'Tumor']
@@ -348,7 +396,7 @@ class test_dataset:
         gt = self.binary_loader(self.gts[self.index])
         file_name = os.path.splitext(os.path.basename(self.images[self.index]))[0]
 
-        with open(label_path, 'r') as f:
+        with open(args.label_json_path, 'r') as f:
             data = json.load(f)
 
         label_list = ['Muscosal erythema', 'Anthrocosis', 'Stenosis', 'Mucosal edema of carina', 'Mucosal infiltration', 'Vascular growth', 'Tumor']
@@ -385,17 +433,17 @@ class ESFPNetStructure(nn.Module):
         super(ESFPNetStructure, self).__init__()
 
         # Backbone
-        if model_type == 'B0':
+        if args.model_type == 'B0':
             self.backbone = mit.mit_b0()
-        if model_type == 'B1':
+        if args.model_type == 'B1':
             self.backbone = mit.mit_b1()
-        if model_type == 'B2':
+        if args.model_type == 'B2':
             self.backbone = mit.mit_b2()
-        if model_type == 'B3':
+        if args.model_type == 'B3':
             self.backbone = mit.mit_b3()
-        if model_type == 'B4':
+        if args.model_type == 'B4':
             self.backbone = mit.mit_b4()
-        if model_type == 'B5':
+        if args.model_type == 'B5':
             self.backbone = mit.mit_b5()
 
         self._init_weights()  # load pretrain
@@ -431,17 +479,17 @@ class ESFPNetStructure(nn.Module):
 
     def _init_weights(self):
 
-        if model_type == 'B0':
+        if args.model_type == 'B0':
             pretrained_dict = torch.load('./Pretrained/mit_b0.pth')
-        if model_type == 'B1':
+        if args.model_type == 'B1':
             pretrained_dict = torch.load('./Pretrained/mit_b1.pth')
-        if model_type == 'B2':
+        if args.model_type == 'B2':
             pretrained_dict = torch.load('./Pretrained/mit_b2.pth')
-        if model_type == 'B3':
+        if args.model_type == 'B3':
             pretrained_dict = torch.load('./Pretrained/mit_b3.pth')
-        if model_type == 'B4':
+        if args.model_type == 'B4':
             pretrained_dict = torch.load('./Pretrained/mit_b4.pth')
-        if model_type == 'B5':
+        if args.model_type == 'B5':
             pretrained_dict = torch.load('./Pretrained/mit_b5.pth')
 
 
@@ -509,7 +557,7 @@ def evaluate():
     total_correct_predictions = torch.zeros(7).to(device)
     threshold_class = 0.6
 
-    val_loader = test_dataset(val_images_path + '/',val_masks_path + '/', label_path ,init_trainsize) #
+    val_loader = test_dataset(val_images_path + '/',val_masks_path + '/', args.label_json_path ,args.init_trainsize) #
     for i in range(val_loader.size):
         image, labels_tensor = val_loader.load_data()#
 
@@ -562,8 +610,8 @@ def evaluate():
 
 def training_loop(n_epochs, ESFPNet_optimizer, numIters):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    trainDataset = PolypDataset(train_images_path + '/', train_masks_path + '/',label_path, trainsize=init_trainsize, augmentations = True) #
-    train_loader = DataLoader(dataset=trainDataset,batch_size=batch_size,shuffle=True)
+    trainDataset = PolypDataset(train_images_path + '/', train_masks_path + '/',args.label_json_path, trainsize=args.init_trainsize, augmentations = True) #
+    train_loader = DataLoader(dataset=trainDataset,batch_size=args.batch_size,shuffle=True)
 
     segmentation_max = 0
     classification_max = 0
@@ -655,7 +703,7 @@ def training_loop(n_epochs, ESFPNet_optimizer, numIters):
 
 import torch.optim as optim
 
-for i in range(repeats):
+for i in range(1):
     # Clear GPU cache
     torch.cuda.empty_cache()
     ESFPNet = ESFPNetStructure()
@@ -673,7 +721,7 @@ for i in range(repeats):
     ESFPNet_optimizer = optim.AdamW(ESFPNet.parameters(), lr=lr)
 
     #losses, coeff_max = training_loop(n_epochs, ESFPNet_optimizer, i+1)
-    training_loop(n_epochs, ESFPNet_optimizer, i+1)
+    training_loop(args.n_epochs, ESFPNet_optimizer, i+1)
     # plt.plot(losses)
 
     # print('#####################################################################################')

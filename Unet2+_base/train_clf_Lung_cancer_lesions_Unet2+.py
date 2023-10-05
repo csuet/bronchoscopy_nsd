@@ -4,26 +4,17 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset,DataLoader,ConcatDataset
-from torch.autograd import Variable
 import json
-import torchvision
-import torchvision.datasets as datasets
 import torchvision.transforms as transforms
 
 #from skimage import io, transform
 from PIL import Image
 
+# visualizing data
+import numpy as np
 import wandb
 wandb.login()
-wandb.init(project="Unet2+_classification_on_Anatomical_Landmarks")
-
-# visualizing data
-import matplotlib.pyplot as plt
-import numpy as np
-import warnings
-
-# load dataset information~
-import yaml
+wandb.init(project="Unet2+_classification_on_Lung_cancer_lesions")
 
 # image writing
 import imageio
@@ -32,23 +23,34 @@ from skimage import img_as_ubyte
 from sklearn.model_selection import train_test_split
 
 from scipy.io import loadmat
-import matplotlib.pyplot as plt
+import argparse
+from pathlib import Path
 
+parser = argparse.ArgumentParser("ESFPNet based model")
+# parser.add_argument('--tasks', type=str, default='Anatomical_Landmarks',
+#         help='Tasks: Anatomical_Landmarks or Lesions')
+parser.add_argument('--label_json_path', type=str, required=True,
+        help='Location of the data directory containing json labels file of each task after combining two json files.json')
+parser.add_argument('--path_cancer_imgs', type=str, required=True,
+        help='Location of the images of cancer cases)')
+parser.add_argument('--path_non_cancer_imgs', type=str, required=True,
+        help='Location of the images of non cancer cases)')
+parser.add_argument('--path_cancer_masks', type=str, required=True,
+        help='Location of the masks of cancer cases for each tasks)')
+parser.add_argument('--path_non_cancer_masks', type=str, required=True,
+        help='Location of the masks of non cancer cases for each tasks)')
+parser.add_argument('--init_trainsize', type=int, default=352,
+        help='Size of image for training (default = 352)')
+parser.add_argument('--batch_size', type=int, default=8,
+        help='Batch size for training (default = 8)')
+parser.add_argument('--n_epochs', type=int, default=500,
+        help='Number of epochs for training (default = 500)')
+parser.add_argument('--if_renew', type=bool, default=False,
+        help='Check if split data to train_val_test')
+args = parser.parse_args()
 # Clear GPU cache
 torch.cuda.empty_cache()
 
-# configuration
-
-model_type = 'B4'
-
-init_trainsize = 352
-batch_size = 5
-
-repeats = 1
-n_epochs = 1000
-if_renew = False
-
-label_path = '/home/thuytt/dungpt/bronchoscopy_nsd/ESFPNet/labels/labels_Anatomical_Landmarks_final.json'
 
 class SplittingDataset(Dataset):
     """
@@ -56,7 +58,7 @@ class SplittingDataset(Dataset):
     """
     def __init__(self, image_root, gt_root):
 
-        with open(label_path, 'r') as f:
+        with open(args.label_json_path, 'r') as f:
             data = json.load(f)
 
         object_id = [id['object_id'] for id in data]
@@ -77,7 +79,7 @@ class SplittingDataset(Dataset):
                     if os.path.splitext(os.path.basename(os.path.join(root, file)))[0] in object_id:
                         self.gts.append(os.path.join(root, file))
         
-        self.images = [file for file in self.images if file.replace('/imgs/', '/masks/') in self.gts]
+        self.images = [file for file in self.images if file.replace('/imgs/', '/masks_Lesions/') in self.gts]
         
         self.images = sorted(self.images)
         self.gts = sorted(self.gts)
@@ -95,13 +97,13 @@ class SplittingDataset(Dataset):
 
         file_name = os.path.splitext(os.path.basename(self.images[index]))[0]
         
-        with open(label_path, 'r') as f:
+        with open(args.label_json_path, 'r') as f:
             data = json.load(f)
 
-        label_list = ['Vocal cords', 'Main carina', 'Intermediate bronchus', 'Right superior lobar bronchus', 'Right inferior lobar bronchus', 'Right middle lobar bronchus', 'Left inferior lobar bronchus', 'Left superior lobar bronchus', 'Right main bronchus', 'Left main bronchus', 'Trachea']
         label_name = [file['label_name'] for file in data if file['object_id'] == file_name]
+        label_list = ['Muscosal erythema', 'Anthrocosis', 'Stenosis', 'Mucosal edema of carina', 'Mucosal infiltration', 'Vascular growth', 'Tumor']
         
-        label_tensor = torch.zeros([11])
+        label_tensor = torch.zeros([7])
         for name in label_name:
             label_tensor[label_list.index(name)] = 1
 
@@ -137,43 +139,47 @@ class SplittingDataset(Dataset):
 
 def splitDataset(renew):
     
-    split_train_images_save_path = '/home/thuytt/dungpt/bronchoscopy_nsd/ESFPNet/dataset/Anatomical_Landmarks/train/imgs'
+    split_train_images_save_path = './dataset/Lung_cancer_lesions/train/imgs'
     os.makedirs(split_train_images_save_path, exist_ok=True)
-    split_train_masks_save_path = '/home/thuytt/dungpt/bronchoscopy_nsd/ESFPNet/dataset/Anatomical_Landmarks/train/masks'
+    split_train_masks_save_path = './dataset/Lung_cancer_lesions/train/masks'
     os.makedirs(split_train_masks_save_path, exist_ok=True)
     
-    split_validation_images_save_path = '/home/thuytt/dungpt/bronchoscopy_nsd/ESFPNet/dataset/Anatomical_Landmarks/val/imgs'
+    split_validation_images_save_path = './dataset/Lung_cancer_lesions/val/imgs'
     os.makedirs(split_validation_images_save_path, exist_ok=True)
-    split_validation_masks_save_path ='/home/thuytt/dungpt/bronchoscopy_nsd/ESFPNet/dataset/Anatomical_Landmarks/val/masks'
+    split_validation_masks_save_path ='./dataset/Lung_cancer_lesions/val/masks'
     os.makedirs(split_validation_masks_save_path, exist_ok=True)
     
-    split_test_images_save_path = '/home/thuytt/dungpt/bronchoscopy_nsd/ESFPNet/dataset/Anatomical_Landmarks/test/imgs'
+    split_test_images_save_path = './dataset/Lung_cancer_lesions/test/imgs'
     os.makedirs(split_test_images_save_path, exist_ok=True)
-    split_test_masks_save_path = '/home/thuytt/dungpt/bronchoscopy_nsd/ESFPNet/dataset/Anatomical_Landmarks/test/masks'
+    split_test_masks_save_path = './dataset/Lung_cancer_lesions/test/masks'
     os.makedirs(split_test_masks_save_path, exist_ok=True)
     
     if renew == True:
     
         DatasetList = []
 
-        images_train_path = '/home/thuytt/dungpt/ESFPNet/Segmentation_Anatomical_Landmarks_data/imgs'
-        masks_train_path = '/home/thuytt/dungpt/ESFPNet/Segmentation_Anatomical_Landmarks_data/masks'
-        Dataset_part_train = SplittingDataset(images_train_path, masks_train_path)
-       
+        images_train_path_1 = Path(args.path_cancer_imgs)
+        masks_train_path_1 = Path(args.path_cancer_masks)
+        Dataset_part_train_1 = SplittingDataset(images_train_path_1, masks_train_path_1)
+        DatasetList.append(Dataset_part_train_1)
+
+        images_train_path_2 = Path(args.path_non_cancer_imgs)
+        masks_train_path_2 = Path(args.path_non_cancer_masks)
+        Dataset_part_train_2 = SplittingDataset(images_train_path_2, masks_train_path_2)
+        DatasetList.append(Dataset_part_train_2)
+
+        wholeDataset = ConcatDataset([DatasetList[0], DatasetList[1]])
+
         imgs_list = []
         masks_list = []
         labels_list = []
         names_list = []
 
-
-
-        for iter in list(Dataset_part_train):
+        for iter in list(wholeDataset):
             imgs_list.append(iter[0])
             masks_list.append(iter[1])
             labels_list.append(iter[2])
             names_list.append(iter[3])
-
-        
 
         element_counts = {}
 
@@ -232,7 +238,7 @@ def splitDataset(renew):
 
     return split_train_images_save_path, split_train_masks_save_path, split_validation_images_save_path, split_validation_masks_save_path, split_test_images_save_path, split_test_masks_save_path
 
-train_images_path, train_masks_path, val_images_path, val_masks_path, test_images_path, test_masks_path = splitDataset(if_renew)
+train_images_path, train_masks_path, val_images_path, val_masks_path, test_images_path, test_masks_path = splitDataset(args.if_renew)
 
 class PolypDataset(Dataset):
     """
@@ -288,14 +294,13 @@ class PolypDataset(Dataset):
         
         file_name = os.path.splitext(os.path.basename(self.images[index]))[0]
         
-        with open(label_path, 'r') as f:
+        with open(args.label_json_path, 'r') as f:
             data = json.load(f)
-
-        label_list = ['Vocal cords', 'Main carina', 'Intermediate bronchus', 'Right superior lobar bronchus', 'Right inferior lobar bronchus', 'Right middle lobar bronchus', 'Left inferior lobar bronchus', 'Left superior lobar bronchus', 'Right main bronchus', 'Left main bronchus', 'Trachea']
-
+            
+        label_list = ['Muscosal erythema', 'Anthrocosis', 'Stenosis', 'Mucosal edema of carina', 'Mucosal infiltration', 'Vascular growth', 'Tumor']
         label_name = [file['label_name'] for file in data if file['object_id'] == file_name]
         
-        label_tensor = torch.zeros([11])
+        label_tensor = torch.zeros([7])
         for name in label_name:
             label_tensor[label_list.index(name)] = 1
 
@@ -372,13 +377,13 @@ class test_dataset:
         gt = self.binary_loader(self.gts[self.index])
         file_name = os.path.splitext(os.path.basename(self.images[self.index]))[0]
 
-        with open(label_path, 'r') as f:
+        with open(args.label_json_path, 'r') as f:
             data = json.load(f)
 
-        label_list = ['Anatomical_LandmarksKQ', 'Anatomical_Landmarks - DT', 'Anatomical_Landmarks - CARINA', 'Anatomical_Landmarks - PQGP', 'Anatomical_Landmarks - PQGT', 'Anatomical_Landmarks - PQTTT', 'Anatomical_Landmarks - PQTDT', 'Anatomical_Landmarks - PQTGP', 'Anatomical_Landmarks - PQTDP', 'Anatomical_Landmarks - PQTTP', 'Anatomical_Landmarks - PQTG']
+        label_list = ['Muscosal erythema', 'Anthrocosis', 'Stenosis', 'Mucosal edema of carina', 'Mucosal infiltration', 'Vascular growth', 'Tumor']
         label_name = [file['label_name'] for file in data if file['object_id'] == file_name]
         
-        label_tensor = torch.zeros([11])
+        label_tensor = torch.zeros([7])
         for name in label_name:
             label_tensor[label_list.index(name)] = 1
         
@@ -396,9 +401,6 @@ class test_dataset:
             img = Image.open(f)
             return img.convert('L')
         
-from collections import OrderedDict
-import copy
-
 from layers import unetConv2, unetUp_origin
 from init_weights import init_weights
 import numpy as np
@@ -462,7 +464,7 @@ class UNet_2Plus(nn.Module):
         self.Dropout = nn.Dropout(p=0.3)
         self.conv1 = nn.Conv2d(512, 256, 1, stride=1, padding=0)
         self.norm2 = nn.BatchNorm2d(256, eps=1e-5)
-        self.conv2 = nn.Conv2d(256, 11, 1, stride=1, padding=0, bias=True) # 9 = number of classes
+        self.conv2 = nn.Conv2d(256, 7, 1, stride=1, padding=0, bias=True) # 9 = number of classes
         self.global_avg_pool = nn.AdaptiveAvgPool2d((1, 1))
         self.softmax = nn.Softmax(dim = 1)
 
@@ -475,30 +477,6 @@ class UNet_2Plus(nn.Module):
         X_20 = self.conv20(maxpool1)
         maxpool2 = self.maxpool2(X_20)
         X_30 = self.conv30(maxpool2)
-        maxpool3 = self.maxpool3(X_30)
-        X_40 = self.conv40(maxpool3)
-
-        # segmentation
-        # column : 1
-        X_01 = self.up_concat01(X_10, X_00)
-        X_11 = self.up_concat11(X_20, X_10)
-        X_21 = self.up_concat21(X_30, X_20)
-        X_31 = self.up_concat31(X_40, X_30)
-        # column : 2
-        X_02 = self.up_concat02(X_11, X_00, X_01)
-        X_12 = self.up_concat12(X_21, X_10, X_11)
-        X_22 = self.up_concat22(X_31, X_20, X_21)
-        # column : 3
-        X_03 = self.up_concat03(X_12, X_00, X_01, X_02)
-        X_13 = self.up_concat13(X_22, X_10, X_11, X_12)
-        # column : 4
-        X_04 = self.up_concat04(X_13, X_00, X_01, X_02, X_03)
-
-        # final layer
-        final_1 = self.final_1(X_01)
-        final_2 = self.final_2(X_02)
-        final_3 = self.final_3(X_03)
-        final_4 = self.final_4(X_04)
 
         out2 = self.global_avg_pool(X_30)
         out2 = self.norm1(out2)
@@ -519,10 +497,10 @@ def evaluate():
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     ESFPNet.eval()
     total = 0
-    total_correct_predictions = torch.zeros(11).to(device)
+    total_correct_predictions = torch.zeros(7).to(device)
     threshold_class = 0.6
 
-    val_loader = test_dataset(val_images_path + '/',val_masks_path + '/', label_path ,init_trainsize) #
+    val_loader = test_dataset(val_images_path + '/',val_masks_path + '/', args.label_json_path ,args.init_trainsize) #
     for i in range(val_loader.size):
         image, labels_tensor = val_loader.load_data()#
 
@@ -539,49 +517,32 @@ def evaluate():
         total_correct_predictions += correct_predictions
 
     acc_1 = total_correct_predictions[0] / total
-    print('Anatomical_LandmarksKQ', acc_1.item())
-    wandb.log({'Anatomical_LandmarksKQ acc_train' : acc_1.item()})
+    print('Muscosal erythema', acc_1.item())
+    wandb.log({'Muscosal erythema acc_train' : acc_1.item()})
 
     acc_2 = total_correct_predictions[1] / total
-    print('Anatomical_Landmarks - DT', acc_2.item())
-    wandb.log({'Anatomical_Landmarks - DT acc_train' : acc_2.item()})
+    print('Anthrocosis', acc_2.item())
+    wandb.log({'Anthrocosis acc_train' : acc_2.item()})
 
     acc_3 = total_correct_predictions[2] / total
-    print('Anatomical_Landmarks - CARINA', acc_3.item())
-    wandb.log({'Anatomical_Landmarks - CARINA acc_train' : acc_3.item()})
+    print('Stenosis', acc_3.item())
+    wandb.log({'Stenosis acc_train' : acc_3.item()})
 
     acc_4 = total_correct_predictions[3] / total
-    print('Anatomical_Landmarks - PQGP', acc_4.item())
-    wandb.log({'Anatomical_Landmarks - PQGP acc_train' : acc_4.item()})
+    print('Mucosal edema of carina', acc_4.item())
+    wandb.log({'Mucosal edema of carina acc_train' : acc_4.item()})
 
     acc_5 = total_correct_predictions[4] / total
-    print('Anatomical_Landmarks - PQGT', acc_5.item())
-    wandb.log({'Anatomical_Landmarks - PQGT acc_train' : acc_5.item()})
+    print('Mucosal infiltration', acc_5.item())
+    wandb.log({'Mucosal infiltration acc_train' : acc_5.item()})
 
     acc_6 = total_correct_predictions[5] / total
-    print('Anatomical_Landmarks - PQTTT', acc_6.item())
-    wandb.log({'Anatomical_Landmarks - PQTTT acc_train' : acc_6.item()})
+    print('Vascular growth', acc_6.item())
+    wandb.log({'Vascular growth acc_train' : acc_6.item()})
 
     acc_7 = total_correct_predictions[6] / total
-    print('Left inferior lobar bronchus', acc_7.item())
-    wandb.log({'Left inferior lobar bronchus acc_train' : acc_7.item()})
-
-    acc_8 = total_correct_predictions[7] / total
-    print('Left superior lobar bronchus', acc_8.item())
-    wandb.log({'Left superior lobar bronchus acc_train' : acc_8.item()})
-    
-    acc_9 = total_correct_predictions[8] / total
-    print('Right main bronchus', acc_9.item())
-    wandb.log({'Right main bronchus acc_train' : acc_9.item()})
-
-    acc_10 = total_correct_predictions[9] / total
-    print('Left main bronchus', acc_10.item())
-    wandb.log({'Left main bronchus acc_train' : acc_10.item()})
-
-    acc_11 = total_correct_predictions[10] / total
-    print('Trachea', acc_11.item())
-    wandb.log({'Trachea acc_train' : acc_11.item()})
-    
+    print('Tumor', acc_7.item())
+    wandb.log({'Tumor acc_train' : acc_7.item()})
 
     overall_accuracy = torch.mean(total_correct_predictions) / total
     print("acc_val_classification", overall_accuracy.item())
@@ -589,12 +550,12 @@ def evaluate():
 
     ESFPNet.train()
 
-    return overall_accuracy.item()
+    return  overall_accuracy.item()
 
 def training_loop(n_epochs, ESFPNet_optimizer, numIters):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    trainDataset = PolypDataset(train_images_path + '/', train_masks_path + '/',label_path, trainsize=init_trainsize, augmentations = True) #
-    train_loader = DataLoader(dataset=trainDataset,batch_size=batch_size,shuffle=True)
+    trainDataset = PolypDataset(train_images_path + '/', train_masks_path + '/',args.label_json_path, trainsize=args.init_trainsize, augmentations = True) #
+    train_loader = DataLoader(dataset=trainDataset,batch_size=args.batch_size,shuffle=True)
 
     segmentation_max = 0
     classification_max = 0
@@ -603,7 +564,7 @@ def training_loop(n_epochs, ESFPNet_optimizer, numIters):
 
     for epoch in range(n_epochs):
         loss_class_train = 0.0
-        total_correct_predictions = torch.zeros(11).to(device)
+        total_correct_predictions = torch.zeros(7).to(device)
         epoch_loss_all = 0.0
         total = 0
         threshold = 0.6
@@ -636,74 +597,53 @@ def training_loop(n_epochs, ESFPNet_optimizer, numIters):
             total_correct_predictions += correct_predictions
 
         acc_1 = total_correct_predictions[0] / total
-        print('Anatomical_LandmarksKQ', acc_1.item())
-        wandb.log({'Anatomical_LandmarksKQ acc_train' : acc_1.item()})
+        print('Muscosal erythema', acc_1.item())
+        wandb.log({'Muscosal erythema acc_train' : acc_1.item()})
 
         acc_2 = total_correct_predictions[1] / total
-        print('Anatomical_Landmarks - DT', acc_2.item())
-        wandb.log({'Anatomical_Landmarks - DT acc_train' : acc_2.item()})
+        print('Anthrocosis', acc_2.item())
+        wandb.log({'Anthrocosis acc_train' : acc_2.item()})
 
         acc_3 = total_correct_predictions[2] / total
-        print('Anatomical_Landmarks - CARINA', acc_3.item())
-        wandb.log({'Anatomical_Landmarks - CARINA acc_train' : acc_3.item()})
+        print('Stenosis', acc_3.item())
+        wandb.log({'Stenosis acc_train' : acc_3.item()})
 
         acc_4 = total_correct_predictions[3] / total
-        print('Anatomical_Landmarks - PQGP', acc_4.item())
-        wandb.log({'Anatomical_Landmarks - PQGP acc_train' : acc_4.item()})
+        print('Mucosal edema of carina', acc_4.item())
+        wandb.log({'Mucosal edema of carina acc_train' : acc_4.item()})
 
         acc_5 = total_correct_predictions[4] / total
-        print('Anatomical_Landmarks - PQGT', acc_5.item())
-        wandb.log({'Anatomical_Landmarks - PQGT acc_train' : acc_5.item()})
+        print('Mucosal infiltration', acc_5.item())
+        wandb.log({'Mucosal infiltration acc_train' : acc_5.item()})
 
         acc_6 = total_correct_predictions[5] / total
-        print('Anatomical_Landmarks - PQTTT', acc_6.item())
-        wandb.log({'Anatomical_Landmarks - PQTTT acc_train' : acc_6.item()})
+        print('Vascular growth', acc_6.item())
+        wandb.log({'Vascular growth acc_train' : acc_6.item()})
 
         acc_7 = total_correct_predictions[6] / total
-        print('Left inferior lobar bronchus', acc_7.item())
-        wandb.log({'Left inferior lobar bronchus acc_train' : acc_7.item()})
+        print('Tumor', acc_7.item())
+        wandb.log({'Tumor acc_train' : acc_7.item()})
 
-        acc_8 = total_correct_predictions[7] / total
-        print('Left superior lobar bronchus', acc_8.item())
-        wandb.log({'Left superior lobar bronchus acc_train' : acc_8.item()})
-        
-        acc_9 = total_correct_predictions[8] / total
-        print('Right main bronchus', acc_9.item())
-        wandb.log({'Right main bronchus acc_train' : acc_9.item()})
-
-        acc_10 = total_correct_predictions[9] / total
-        print('Left main bronchus', acc_10.item())
-        wandb.log({'Left main bronchus acc_train' : acc_10.item()})
-
-        acc_11 = total_correct_predictions[10] / total
-        print('Trachea', acc_11.item())
-        wandb.log({'Trachea acc_train' : acc_11.item()})
-        
         epoch_loss = epoch_loss_all /  len(train_loader)
         wandb.log({"Loss_train" : epoch_loss})
         print("epoch_loss", epoch_loss)
-
         #acc_classification
         overall_accuracy = torch.mean(total_correct_predictions) / total
         print("acc_train", overall_accuracy.item())
         wandb.log({"Acc_classification_train" : overall_accuracy*100})
 
-        # print("-Training dataset. Got %d out of %d images correctly (%.3f%%). Epoch loss: %.3f"
-        #       % (total_correct_predictions, total, overall_accuracy, epoch_loss))
-
         classification_acc = evaluate()
 
         if classification_max < classification_acc:
-            data = 'Anatomical_Landmarks'
+            data = 'Lung_cancer_lesions'
             classification_max = classification_acc
             save_model_path = './SaveModel/'+data+'/'
             os.makedirs(save_model_path, exist_ok=True)
-            print(save_model_path)
             torch.save(ESFPNet, save_model_path + '/Classification_model.pt')               
 
 import torch.optim as optim
 
-for i in range(repeats):
+for i in range(1):
     # Clear GPU cache
     torch.cuda.empty_cache()
     ESFPNet = UNet_2Plus()
@@ -720,16 +660,6 @@ for i in range(repeats):
 
     ESFPNet_optimizer = optim.AdamW(ESFPNet.parameters(), lr=lr)
 
-    #losses, coeff_max = training_loop(n_epochs, ESFPNet_optimizer, i+1)
-    training_loop(n_epochs, ESFPNet_optimizer, i+1)
-    # plt.plot(losses)
-
-    # print('#####################################################################################')
-    # print('optimize_m_dice: {:6.6f}'.format(coeff_max))
-
-    # saveResult(i+1)
-    # print('#####################################################################################')
-    # print('saved the results')
-    # print('#####################################################################################')
+    training_loop(args.n_epochs, ESFPNet_optimizer, i+1)
 
 wandb.finish()
