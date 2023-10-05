@@ -18,7 +18,7 @@ parser.add_argument('--data_objects', type=str, required=True,
 parser.add_argument('--data_labels', type=str, required=True,
         help='Location of the data directory containing labels.json')
 parser.add_argument('--path_save', type=str, required=True,
-        help='Location of the saved file)')
+        help='Location of the saved file (In the same folder as imgs folder) (Recommend name: masks_Lesions or masks_Anatomical landmark)')
 args = parser.parse_args()
 
 path_annots = Path(args.data_annots)
