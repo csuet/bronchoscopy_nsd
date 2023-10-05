@@ -21,15 +21,6 @@ parser.add_argument('--path_save', type=str, required=True,
         help='Location of the saved file)')
 args = parser.parse_args()
 
-# Path to json files
-# path_annots = '/workspace/ailab/phucnd/04102023_Nhom_chung/annotation_final.json'
-# path_objects = '/workspace/ailab/phucnd/04102023_Nhom_chung/objects_final.json'
-# path_labels = '/workspace/ailab/phucnd/04102023_Nhom_chung/labels_final.json'
-
-# path_annots = '/workspace/ailab/phucnd/04102023_Nhom_benh/annotation_final.json'
-# path_objects = '/workspace/ailab/phucnd/04102023_Nhom_benh/objects_final.json'
-# path_labels = '/workspace/ailab/phucnd/04102023_Nhom_benh/labels_final.json'
-
 path_annots = Path(args.data_annots)
 path_objects = Path(args.data_objects)
 path_labels = Path(args.data_labels)
