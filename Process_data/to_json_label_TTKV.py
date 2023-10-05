@@ -1,14 +1,22 @@
 # Create json files for Lesions task
 import json
+import argparse
+from pathlib import Path
 
-# Path to json files
-path_annots = '/workspace/ailab/phucnd/04102023_Nhom_chung/annotation_final.json'
-path_objects = '/workspace/ailab/phucnd/04102023_Nhom_chung/objects_final.json'
-path_labels = '/workspace/ailab/phucnd/04102023_Nhom_chung/labels_final.json'
+parser = argparse.ArgumentParser("N-gram Language Model")
+parser.add_argument('--data_annots', type=str, required=True,
+        help='Location of the data directory containing annotation.json')
+parser.add_argument('--data_objects', type=str, required=True,
+        help='Location of the data directory containing labels.json')
+parser.add_argument('--data_labels', type=str, required=True,
+        help='Location of the data directory containing objects.json')
+parser.add_argument('--path_save', type=str, required=True,
+        help='Location of the saved file)')
+args = parser.parse_args()
 
-# path_annots = '/workspace/ailab/phucnd/04102023_Nhom_benh/annotation_final.json'
-# path_objects = '/workspace/ailab/phucnd/04102023_Nhom_benh/objects_final.json'
-# path_labels = '/workspace/ailab/phucnd/04102023_Nhom_benh/labels_final.json'
+path_annots = Path(args.data_annots)
+path_objects = Path(args.data_objects)
+path_labels = Path(args.data_labels)
 
 # Read json files
 annots = open(path_annots)
@@ -20,8 +28,7 @@ data_objects = json.load(objects)
 labels = open(path_labels)
 data_labels = json.load(labels)
 
-# path_save = '/workspace/ailab/phucnd/04102023_Nhom_benh/json_label_TTKV_final.json'
-path_save = '/workspace/ailab/phucnd/04102023_Nhom_chung/json_label_TTKV_final_test.json'
+path_save = Path(args.path_save)
 
 try:
     with open(path_save, 'r') as json_file:
