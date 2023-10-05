@@ -3,7 +3,7 @@ import json
 import argparse
 from pathlib import Path
 
-parser = argparse.ArgumentParser("N-gram Language Model")
+parser = argparse.ArgumentParser("Preprocess data")
 parser.add_argument('--data_annots', type=str, required=True,
         help='Location of the data directory containing annotation.json')
 parser.add_argument('--data_objects', type=str, required=True,
