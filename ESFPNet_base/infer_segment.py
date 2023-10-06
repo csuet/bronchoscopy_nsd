@@ -30,9 +30,24 @@ from skimage import img_as_ubyte
 # Clear GPU cache
 torch.cuda.empty_cache()
 
-model_type = 'B4'
+import argparse
+from pathlib import Path
 
-init_trainsize = 352
+parser = argparse.ArgumentParser("ESFPNet based model")
+parser.add_argument('--path_imgs_test', type=str, required=True,
+        help='Location of the images of test_phase for each tasks)')
+parser.add_argument('--path_masks_test', type=str, required=True,
+        help='Location of the masks of test_phase for each tasks)')
+parser.add_argument('--model_type', type=str, default='B4',
+        help='Type of model (default B4)')
+parser.add_argument('--init_trainsize', type=int, default=352,
+        help='Size of image for training (default = 352)')
+parser.add_argument('--saved_model', type=str, required=True,
+        help='load saved model') 
+parser.add_argument('--log_dir', type=str, required=True,
+        help='save inference outputs') 
+
+args = parser.parse_args()
 
 class test_dataset:
     def __init__(self, image_root, gt_root, testsize):
@@ -83,17 +98,17 @@ class ESFPNetStructure(nn.Module):
         super(ESFPNetStructure, self).__init__()
 
         # Backbone
-        if model_type == 'B0':
+        if args.model_type == 'B0':
             self.backbone = mit.mit_b0()
-        if model_type == 'B1':
+        if args.model_type == 'B1':
             self.backbone = mit.mit_b1()
-        if model_type == 'B2':
+        if args.model_type == 'B2':
             self.backbone = mit.mit_b2()
-        if model_type == 'B3':
+        if args.model_type == 'B3':
             self.backbone = mit.mit_b3()
-        if model_type == 'B4':
+        if args.model_type == 'B4':
             self.backbone = mit.mit_b4()
-        if model_type == 'B5':
+        if args.model_type == 'B5':
             self.backbone = mit.mit_b5()
 
         self._init_weights()  # load pretrain
@@ -119,17 +134,17 @@ class ESFPNetStructure(nn.Module):
 
     def _init_weights(self):
 
-        if model_type == 'B0':
+        if args.model_type == 'B0':
             pretrained_dict = torch.load('./Pretrained/mit_b0.pth')
-        if model_type == 'B1':
+        if args.model_type == 'B1':
             pretrained_dict = torch.load('./Pretrained/mit_b1.pth')
-        if model_type == 'B2':
+        if args.model_type == 'B2':
             pretrained_dict = torch.load('./Pretrained/mit_b2.pth')
-        if model_type == 'B3':
+        if args.model_type == 'B3':
             pretrained_dict = torch.load('./Pretrained/mit_b3.pth')
-        if model_type == 'B4':
+        if args.model_type == 'B4':
             pretrained_dict = torch.load('./Pretrained/mit_b4.pth')
-        if model_type == 'B5':
+        if args.model_type == 'B5':
             pretrained_dict = torch.load('./Pretrained/mit_b5.pth')
 
 
@@ -196,23 +211,18 @@ class ESFPNetStructure(nn.Module):
         out1 = self.linear_pred(torch.cat([lp1_resized, lp2_resized, lp3_resized, lp4_resized], dim=1))
         # print(out.shape)
         return out1
-test_images_path = './dataset/Lung_cancer_lesions/test/imgs'
-test_masks_path = './dataset/Lung_cancer_lesions/test/masks'
 
 def saveResult():
+    os.makedirs(args.log_dir, exist_ok=True)
 
-    data = 'Lung_cancer_lesions'
-    save_path = './log_dir/' + data + '/'
-    os.makedirs(save_path, exist_ok=True)
-
-    ESFPNet = torch.load('./SaveModel/Lung_cancer_lesions/Segmentation_model.pt')
+    ESFPNet = torch.load(args.save_model)
     ESFPNet.eval()
 
     val = 0
     count = 0
 
     smooth = 1e-4
-    val_loader = test_dataset(test_images_path + '/',test_masks_path + '/' ,init_trainsize) #
+    val_loader = test_dataset(args.path_imgs_test + '/',args.path_masks_test + '/' ,args.init_trainsize) #
     for i in range(val_loader.size):
         image, gt, name = val_loader.load_data()#
         gt = np.asarray(gt, np.float32)
@@ -240,6 +250,9 @@ def saveResult():
 
         val = val + a
         count = count + 1
+        
+        imageio.imwrite(args.log_dir + name, img_as_ubyte(pred1))
+
 
     print("dice_val_segmetation",100 * val/count)
 

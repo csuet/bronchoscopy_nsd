@@ -34,6 +34,8 @@ import argparse
 from pathlib import Path
 
 parser = argparse.ArgumentParser("Unet++ based model")
+parser.add_argument('--label_json_path', type=str, required=True,
+        help='Location of the data directory containing json labels file of each task after combining two json files.json')
 parser.add_argument('--path_imgs_test', type=str, required=True,
         help='Location of the images of test_phase for each tasks)')
 parser.add_argument('--path_masks_test', type=str, required=True,
@@ -41,17 +43,17 @@ parser.add_argument('--path_masks_test', type=str, required=True,
 parser.add_argument('--init_trainsize', type=int, default=352,
         help='Size of image for training (default = 352)')
 parser.add_argument('--saved_model', type=str, required=True,
-        help='load saved model')
-parser.add_argument('--log_dir', type=str, required=True,
-        help='save inference outputs') 
+        help='load saved model') 
 
 args = parser.parse_args()
 
+
 class test_dataset:
-    def __init__(self, image_root, gt_root, testsize):
+    def __init__(self, image_root, gt_root,label_root,  testsize): #
         self.testsize = testsize
         self.images = [image_root + f for f in os.listdir(image_root) if f.endswith('.jpg') or f.endswith('.png')]
         self.gts = [gt_root + f for f in os.listdir(gt_root) if f.endswith('.tif') or f.endswith('.png') or f.endswith('.jpg')]
+        self.labels = label_root
         self.images = sorted(self.images)
         self.gts = sorted(self.gts)
         self.transform = transforms.Compose([
@@ -67,11 +69,22 @@ class test_dataset:
         image = self.rgb_loader(self.images[self.index])
         image = self.transform(image).unsqueeze(0)
         gt = self.binary_loader(self.gts[self.index])
-        name = self.images[self.index].split('/')[-1]
-        if name.endswith('.jpg'):
-            name = name.split('.jpg')[0] + '.png'
+        file_name = os.path.splitext(os.path.basename(self.images[self.index]))[0]
+
+        with open(args.label_json_path, 'r') as f:
+            data = json.load(f)
+
+        label_list = ['Muscosal erythema', 'Anthrocosis', 'Stenosis', 'Mucosal edema of carina', 'Mucosal infiltration', 'Vascular growth', 'Tumor']
+
+        label_name = [file['label_name'] for file in data if file['object_id'] == file_name]
+        
+        label_tensor = torch.zeros([7])
+        for name in label_name:
+            label_tensor[label_list.index(name)] = 1
+        
+
         self.index += 1
-        return image, gt, name
+        return image, label_tensor
 
     def rgb_loader(self, path):
         with open(path, 'rb') as f:
@@ -143,6 +156,15 @@ class UNet_2Plus(nn.Module):
                 init_weights(m, init_type='kaiming')
             elif isinstance(m, nn.BatchNorm2d):
                 init_weights(m, init_type='kaiming')
+        
+        self.norm1 = nn.BatchNorm2d(512, eps=1e-5)
+        self.Relu = nn.ReLU(inplace=True)
+        self.Dropout = nn.Dropout(p=0.3)
+        self.conv1 = nn.Conv2d(512, 256, 1, stride=1, padding=0)
+        self.norm2 = nn.BatchNorm2d(256, eps=1e-5)
+        self.conv2 = nn.Conv2d(256, 7, 1, stride=1, padding=0, bias=True) # 9 = number of classes
+        self.global_avg_pool = nn.AdaptiveAvgPool2d((1, 1))
+        self.softmax = nn.Softmax(dim = 1)
 
     def forward(self, inputs):
         # column : 0
@@ -153,76 +175,46 @@ class UNet_2Plus(nn.Module):
         X_20 = self.conv20(maxpool1)
         maxpool2 = self.maxpool2(X_20)
         X_30 = self.conv30(maxpool2)
-        maxpool3 = self.maxpool3(X_30)
-        X_40 = self.conv40(maxpool3)
+       
+        out2 = self.global_avg_pool(X_30)
+        out2 = self.norm1(out2)
+        out2 = self.Relu(out2)
+        out2 = self.Dropout(out2)
+        out2 = self.conv1(out2)
+        out2 = self.norm2(out2)
+        out2 = self.Relu(out2)
+        out2 = self.conv2(out2)
 
-        # column : 1
-        X_01 = self.up_concat01(X_10, X_00)
-        X_11 = self.up_concat11(X_20, X_10)
-        X_21 = self.up_concat21(X_30, X_20)
-        X_31 = self.up_concat31(X_40, X_30)
-        # column : 2
-        X_02 = self.up_concat02(X_11, X_00, X_01)
-        X_12 = self.up_concat12(X_21, X_10, X_11)
-        X_22 = self.up_concat22(X_31, X_20, X_21)
-        # column : 3
-        X_03 = self.up_concat03(X_12, X_00, X_01, X_02)
-        X_13 = self.up_concat13(X_22, X_10, X_11, X_12)
-        # column : 4
-        X_04 = self.up_concat04(X_13, X_00, X_01, X_02, X_03)
-
-        # final layer
-        final_1 = self.final_1(X_01)
-        final_2 = self.final_2(X_02)
-        final_3 = self.final_3(X_03)
-        final_4 = self.final_4(X_04)
-
-        final = (final_1 + final_2 + final_3 + final_4) / 4
-
-        return final
-    
+        return out2
 
 def saveResult():
-    os.makedirs(args.log_dir, exist_ok=True)
 
-    ESFPNet = torch.load(args.save_model)
-    ESFPNet.eval()
+    UNet = torch.load(args.save_model)
+    UNet.eval()
 
-    val = 0
-    count = 0
-    smooth = 1e-4
-    val_loader = test_dataset(args.path_imgs_test + '/',args.path_masks_test + '/' ,args.init_trainsize) #
+    total = 0
+    total_correct_predictions = torch.zeros(7).to(device)
+    threshold_class = 0.6
+
+    val_loader = test_dataset(args.path_imgs_test + '/',args.path_masks_test + '/', args.label_json_path ,args.init_trainsize) #
     for i in range(val_loader.size):
-        image, gt, name = val_loader.load_data()#
-        gt = np.asarray(gt, np.float32)
-        gt /= (gt.max() + 1e-8)
+        image, labels_tensor = val_loader.load_data()#
+
         image = image.cuda()
+        labels_tensor = labels_tensor.to(device)
+        pred2 = UNet(image)
+        pred2 = np.squeeze(pred2)
+        pred2 = torch.unsqueeze(pred2, 0)
+        total += 1
 
-        pred1= ESFPNet(image)
-        pred1 = F.upsample(pred1, size=gt.shape, mode='bilinear', align_corners=False)
-        pred1 = pred1.sigmoid()
-        threshold = torch.tensor([0.5]).to(device)
-        pred1 = (pred1 > threshold).float() * 1
+        labels_predicted = torch.sigmoid(pred2)
+        thresholded_predictions = (labels_predicted >= threshold_class).int()
+        correct_predictions = (thresholded_predictions == labels_tensor).sum(dim=0)
+        total_correct_predictions += correct_predictions
+    
 
-        pred1 = pred1.data.cpu().numpy().squeeze()
-        pred1 = (pred1 - pred1.min()) / (pred1.max() - pred1.min() + 1e-8)
-        target = np.array(gt)
-
-        input_flat = np.reshape(pred1,(-1))
-        target_flat = np.reshape(target,(-1))
-        intersection = (input_flat*target_flat)
-        loss =  (2 * intersection.sum() + smooth) / (pred1.sum() + target.sum() + smooth)
-
-        a =  '{:.4f}'.format(loss)
-        a = float(a)
-
-        val = val + a
-        count = count + 1
-
-        imageio.imwrite(args.log_dir + name, img_as_ubyte(pred1))
-
-        
-    print("dice_val_segmetation",100 * val/count)
+    overall_accuracy = torch.mean(total_correct_predictions) / total
+    print("acc_val_classification", overall_accuracy.item())
 
 
         

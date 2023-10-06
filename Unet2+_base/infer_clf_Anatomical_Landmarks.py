@@ -30,11 +30,23 @@ from skimage import img_as_ubyte
 # Clear GPU cache
 torch.cuda.empty_cache()
 
-model_type = 'B4'
+import argparse
+from pathlib import Path
 
-init_trainsize = 352
+parser = argparse.ArgumentParser("Unet++ based model")
+parser.add_argument('--label_json_path', type=str, required=True,
+        help='Location of the data directory containing json labels file of each task after combining two json files.json')
+parser.add_argument('--path_imgs_test', type=str, required=True,
+        help='Location of the images of test_phase for each tasks)')
+parser.add_argument('--path_masks_test', type=str, required=True,
+        help='Location of the masks of test_phase for each tasks)')
+parser.add_argument('--init_trainsize', type=int, default=352,
+        help='Size of image for training (default = 352)')
+parser.add_argument('--saved_model', type=str, required=True,
+        help='load saved model') 
 
-label_path = '/home/thuytt/dungpt/bronchoscopy_nsd/ESFPNet/labels/labels_Anatomical_Landmarks_final.json'
+args = parser.parse_args()
+
 
 class test_dataset:
     def __init__(self, image_root, gt_root,label_root,  testsize): #
@@ -59,10 +71,9 @@ class test_dataset:
         gt = self.binary_loader(self.gts[self.index])
         file_name = os.path.splitext(os.path.basename(self.images[self.index]))[0]
 
-        with open(label_path, 'r') as f:
+        with open(args.label_json_path, 'r') as f:
             data = json.load(f)
 
-        #label_list = ['Muscosal erythema', 'Anthrocosis', 'Stenosis', 'Mucosal edema of carina', 'Mucosal infiltration', 'Vascular growth', 'Tumor']
         label_list = ['Vocal cords', 'Main carina', 'Intermediate bronchus', 'Right superior lobar bronchus', 'Right inferior lobar bronchus', 'Right middle lobar bronchus', 'Left inferior lobar bronchus', 'Left superior lobar bronchus', 'Right main bronchus', 'Left main bronchus', 'Trachea']
 
         label_name = [file['label_name'] for file in data if file['object_id'] == file_name]
@@ -164,31 +175,7 @@ class UNet_2Plus(nn.Module):
         X_20 = self.conv20(maxpool1)
         maxpool2 = self.maxpool2(X_20)
         X_30 = self.conv30(maxpool2)
-        maxpool3 = self.maxpool3(X_30)
-        X_40 = self.conv40(maxpool3)
-
-        # segmentation
-        # column : 1
-        X_01 = self.up_concat01(X_10, X_00)
-        X_11 = self.up_concat11(X_20, X_10)
-        X_21 = self.up_concat21(X_30, X_20)
-        X_31 = self.up_concat31(X_40, X_30)
-        # column : 2
-        X_02 = self.up_concat02(X_11, X_00, X_01)
-        X_12 = self.up_concat12(X_21, X_10, X_11)
-        X_22 = self.up_concat22(X_31, X_20, X_21)
-        # column : 3
-        X_03 = self.up_concat03(X_12, X_00, X_01, X_02)
-        X_13 = self.up_concat13(X_22, X_10, X_11, X_12)
-        # column : 4
-        X_04 = self.up_concat04(X_13, X_00, X_01, X_02, X_03)
-
-        # final layer
-        final_1 = self.final_1(X_01)
-        final_2 = self.final_2(X_02)
-        final_3 = self.final_3(X_03)
-        final_4 = self.final_4(X_04)
-
+       
         out2 = self.global_avg_pool(X_30)
         out2 = self.norm1(out2)
         out2 = self.Relu(out2)
@@ -200,29 +187,22 @@ class UNet_2Plus(nn.Module):
 
         return out2
 
-test_images_path = '/home/thuytt/dungpt/bronchoscopy_nsd/ESFPNet/dataset/Anatomical_Landmarks/test/imgs'
-test_masks_path = '/home/thuytt/dungpt/bronchoscopy_nsd/ESFPNet/dataset/Anatomical_Landmarks/test/masks'
-
 def saveResult():
 
-    data = 'Anatomical_Landmarks'
-    save_path = './log_dir/' + data + '/'
-    os.makedirs(save_path, exist_ok=True)
-
-    ESFPNet = torch.load('./SaveModel/Anatomical_Landmarks/Classification_model.pt')
-    ESFPNet.eval()
+    UNet = torch.load(args.save_model)
+    UNet.eval()
 
     total = 0
     total_correct_predictions = torch.zeros(11).to(device)
     threshold_class = 0.6
 
-    val_loader = test_dataset(test_images_path + '/',test_masks_path + '/', label_path ,init_trainsize) #
+    val_loader = test_dataset(args.path_imgs_test + '/',args.path_masks_test + '/', args.label_json_path ,args.init_trainsize) #
     for i in range(val_loader.size):
         image, labels_tensor = val_loader.load_data()#
 
         image = image.cuda()
         labels_tensor = labels_tensor.to(device)
-        pred2 = ESFPNet(image)
+        pred2 = UNet(image)
         pred2 = np.squeeze(pred2)
         pred2 = torch.unsqueeze(pred2, 0)
         total += 1

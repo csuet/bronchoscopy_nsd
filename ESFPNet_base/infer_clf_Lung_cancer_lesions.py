@@ -45,9 +45,7 @@ parser.add_argument('--model_type', type=str, default='B4',
 parser.add_argument('--init_trainsize', type=int, default=352,
         help='Size of image for training (default = 352)')
 parser.add_argument('--saved_model', type=str, required=True,
-        help='load saved model')
-parser.add_argument('--log_dir', type=str, required=True,
-        help='save inference outputs') 
+        help='Load saved model') 
 
 args = parser.parse_args()
 
@@ -72,23 +70,22 @@ class test_dataset:
         image = self.rgb_loader(self.images[self.index])
         image = self.transform(image).unsqueeze(0)
         gt = self.binary_loader(self.gts[self.index])
-        name_ = self.images[self.index].split('/')[-1]
-        
         file_name = os.path.splitext(os.path.basename(self.images[self.index]))[0]
-        #print("file_name", file_name)
+
         with open(args.label_json_path, 'r') as f:
             data = json.load(f)
 
-        label_list = ['Vocal cords', 'Main carina', 'Intermediate bronchus', 'Right superior lobar bronchus', 'Right inferior lobar bronchus', 'Right middle lobar bronchus', 'Left inferior lobar bronchus', 'Left superior lobar bronchus', 'Right main bronchus', 'Left main bronchus', 'Trachea']
+        label_list = ['Muscosal erythema', 'Anthrocosis', 'Stenosis', 'Mucosal edema of carina', 'Mucosal infiltration', 'Vascular growth', 'Tumor']
+
         label_name = [file['label_name'] for file in data if file['object_id'] == file_name]
         
-        label_tensor = torch.zeros([11])
+        label_tensor = torch.zeros([7])
         for name in label_name:
             label_tensor[label_list.index(name)] = 1
         
 
         self.index += 1
-        return image, gt, label_tensor, name_
+        return image, label_tensor
 
     def rgb_loader(self, path):
         with open(path, 'rb') as f:
@@ -153,7 +150,7 @@ class ESFPNetStructure(nn.Module):
         self.Dropout = nn.Dropout(p=0.3)
         self.conv1 = nn.Conv2d(512, 256, 1, stride=1, padding=0)
         self.norm2 = nn.BatchNorm2d(256, eps=1e-5)
-        self.conv2 = nn.Conv2d(256, 11, 1, stride=1, padding=0, bias=True) # 9 = number of classes
+        self.conv2 = nn.Conv2d(256, 7, 1, stride=1, padding=0, bias=True) # 9 = number of classes
         self.global_avg_pool = nn.AdaptiveAvgPool2d((1, 1))
         self.softmax = nn.Softmax(dim = 1)
 
@@ -214,29 +211,6 @@ class ESFPNetStructure(nn.Module):
         out_4 = self.backbone.norm4(out_4)
         out_4 = out_4.reshape(B, H, W, -1).permute(0, 3, 1, 2).contiguous()  #(Batch_Size, self.backbone.embed_dims[3], 11, 11)
 
-
-        #segmentation
-        # go through LP Header
-        lp_1 = self.LP_1(out_1)
-        lp_2 = self.LP_2(out_2)
-        lp_3 = self.LP_3(out_3)
-        lp_4 = self.LP_4(out_4)
-
-        # linear fuse and go pass LP Header
-        lp_34 = self.LP_34(self.linear_fuse34(torch.cat([lp_3, F.interpolate(lp_4,scale_factor=2,mode='bilinear', align_corners=False)], dim=1)))
-        lp_23 = self.LP_23(self.linear_fuse23(torch.cat([lp_2, F.interpolate(lp_34,scale_factor=2,mode='bilinear', align_corners=False)], dim=1)))
-        lp_12 = self.LP_12(self.linear_fuse12(torch.cat([lp_1, F.interpolate(lp_23,scale_factor=2,mode='bilinear', align_corners=False)], dim=1)))
-
-        # get the final output
-        lp4_resized = F.interpolate(lp_4,scale_factor=8,mode='bilinear', align_corners=False)
-        lp3_resized = F.interpolate(lp_34,scale_factor=4,mode='bilinear', align_corners=False)
-        lp2_resized = F.interpolate(lp_23,scale_factor=2,mode='bilinear', align_corners=False)
-        lp1_resized = lp_12
-
-        out1 = self.linear_pred(torch.cat([lp1_resized, lp2_resized, lp3_resized, lp4_resized], dim=1))
-        # print(out.shape)
-
-
         #classification
         out2 = self.global_avg_pool(out_4)
         out2 = self.norm1(out2)
@@ -246,65 +220,34 @@ class ESFPNetStructure(nn.Module):
         out2 = self.norm2(out2)
         out2 = self.Relu(out2)
         out2 = self.conv2(out2)
-        out2 = self.softmax(out2)
 
-        return out1, out2
+        return out2
+
 
 def saveResult():
-    os.makedirs(args.log_dir, exist_ok=True)
-
     ESFPNet = torch.load(args.save_model)
     ESFPNet.eval()
 
     total = 0
-    total_correct_predictions = torch.zeros(11).to(device)
-    val = 0
-    count = 0
+    total_correct_predictions = torch.zeros(7).to(device)
     threshold_class = 0.6
 
-    smooth = 1e-4
     val_loader = test_dataset(args.path_imgs_test + '/',args.path_masks_test + '/', args.label_json_path , args.init_trainsize) #
     for i in range(val_loader.size):
-        image, gt, labels_tensor, name = val_loader.load_data()#
-        gt = np.asarray(gt, np.float32)
-        gt /= (gt.max() + 1e-8)
+        image, labels_tensor = val_loader.load_data()#
 
         image = image.cuda()
-        labels_tensor = labels_tensor.cuda()
-        
-        pred1, pred2= ESFPNet(image)
+        labels_tensor = labels_tensor.to(device)
+        pred2 = ESFPNet(image)
         pred2 = np.squeeze(pred2)
         pred2 = torch.unsqueeze(pred2, 0)
-        pred1 = F.upsample(pred1, size=gt.shape, mode='bilinear', align_corners=False)
-        pred1 = pred1.sigmoid()
-        threshold = torch.tensor([0.5]).to(device)
-        pred1 = (pred1 > threshold).float() * 1
-
-        pred1 = pred1.data.cpu().numpy().squeeze()
-        pred1 = (pred1 - pred1.min()) / (pred1.max() - pred1.min() + 1e-8)
-        target = np.array(gt)
-
-        input_flat = np.reshape(pred1,(-1))
-        target_flat = np.reshape(target,(-1))
-        intersection = (input_flat*target_flat)
-        loss =  (2 * intersection.sum() + smooth) / (pred1.sum() + target.sum() + smooth)
-
-        a =  '{:.4f}'.format(loss)
-        a = float(a)
-
-        val = val + a
-        count = count + 1
-
-        total = total + 1
+        total += 1
 
         labels_predicted = torch.sigmoid(pred2)
         thresholded_predictions = (labels_predicted >= threshold_class).int()
         correct_predictions = (thresholded_predictions == labels_tensor).sum(dim=0)
         total_correct_predictions += correct_predictions
 
-        imageio.imwrite(args.log_dir + name, img_as_ubyte(pred1))
-    
-    print("dice_val_segmetation",100 * val/count)
     overall_accuracy = torch.mean(total_correct_predictions) / total
     print("acc_val_classification", overall_accuracy.item())
 

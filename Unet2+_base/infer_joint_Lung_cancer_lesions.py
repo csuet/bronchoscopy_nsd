@@ -30,12 +30,24 @@ from skimage import img_as_ubyte
 # Clear GPU cache
 torch.cuda.empty_cache()
 
+import argparse
+from pathlib import Path
 
-model_type = 'B4'
+parser = argparse.ArgumentParser("Unet++ based model")
+parser.add_argument('--label_json_path', type=str, required=True,
+        help='Location of the data directory containing json labels file of each task after combining two json files.json')
+parser.add_argument('--path_imgs_test', type=str, required=True,
+        help='Location of the images of test_phase for each tasks)')
+parser.add_argument('--path_masks_test', type=str, required=True,
+        help='Location of the masks of test_phase for each tasks)')
+parser.add_argument('--init_trainsize', type=int, default=352,
+        help='Size of image for training (default = 352)')
+parser.add_argument('--saved_model', type=str, required=True,
+        help='load saved model') 
+parser.add_argument('--log_dir', type=str, required=True,
+        help='save inference outputs') 
 
-init_trainsize = 352
-
-label_path = '/home/thuytt/dungpt/bronchoscopy_nsd/ESFPNet/labels/labels_Anatomical_Landmarks_final.json'
+args = parser.parse_args()
 
 class test_dataset:
     def __init__(self, image_root, gt_root,label_root,  testsize): #
@@ -61,15 +73,14 @@ class test_dataset:
         file_name = os.path.splitext(os.path.basename(self.images[self.index]))[0]
         name_ = self.images[self.index].split('/')[-1]
 
-        with open(label_path, 'r') as f:
+        with open(args.label_json_path, 'r') as f:
             data = json.load(f)
 
-        #label_list = ['Muscosal erythema', 'Anthrocosis', 'Stenosis', 'Mucosal edema of carina', 'Mucosal infiltration', 'Vascular growth', 'Tumor']
-        label_list = ['Vocal cords', 'Main carina', 'Intermediate bronchus', 'Right superior lobar bronchus', 'Right inferior lobar bronchus', 'Right middle lobar bronchus', 'Left inferior lobar bronchus', 'Left superior lobar bronchus', 'Right main bronchus', 'Left main bronchus', 'Trachea']
+        label_list = ['Muscosal erythema', 'Anthrocosis', 'Stenosis', 'Mucosal edema of carina', 'Mucosal infiltration', 'Vascular growth', 'Tumor']
 
         label_name = [file['label_name'] for file in data if file['object_id'] == file_name]
         
-        label_tensor = torch.zeros([11])
+        label_tensor = torch.zeros([7])
         for name in label_name:
             label_tensor[label_list.index(name)] = 1
         
@@ -153,7 +164,7 @@ class UNet_2Plus(nn.Module):
         self.Dropout = nn.Dropout(p=0.3)
         self.conv1 = nn.Conv2d(512, 256, 1, stride=1, padding=0)
         self.norm2 = nn.BatchNorm2d(256, eps=1e-5)
-        self.conv2 = nn.Conv2d(256, 11, 1, stride=1, padding=0, bias=True) # 9 = number of classes
+        self.conv2 = nn.Conv2d(256, 7, 1, stride=1, padding=0, bias=True) # 9 = number of classes
         self.global_avg_pool = nn.AdaptiveAvgPool2d((1, 1))
         self.softmax = nn.Softmax(dim = 1)
 
@@ -204,30 +215,21 @@ class UNet_2Plus(nn.Module):
 
         return out1, out2
     
-test_images_path = '/home/thuytt/dungpt/bronchoscopy_nsd/ESFPNet/dataset/Anatomical_Landmarks/test/imgs'
-test_masks_path = '/home/thuytt/dungpt/bronchoscopy_nsd/ESFPNet/dataset/Anatomical_Landmarks/test/masks'
-
 def saveResult():
+    os.makedirs(args.log_dir, exist_ok=True)
 
-    data = 'Anatomical_Landmarks_multimodel'
-    save_path = './log_dir/' + data + '/'
-    os.makedirs(save_path, exist_ok=True)
-
-   
-
-    #model_path = './SaveModel/{}'.format(_model_name)
-    ESFPNet = torch.load('./SaveModel/Anatomical_Landmarks_multimodel/Classification_best.pt')
+    ESFPNet = torch.load(args.save_model)
     ESFPNet.eval()
     
     total = 0
-    total_correct_predictions = torch.zeros(11).to(device)
+    total_correct_predictions = torch.zeros(7).to(device)
     val = 0
     count = 0
     threshold_class = 0.6
 
 
     smooth = 1e-4
-    val_loader = test_dataset(test_images_path + '/',test_masks_path + '/', label_path ,init_trainsize) #
+    val_loader = test_dataset(args.path_imgs_test + '/',args.path_masks_test + '/', args.label_json_path ,args.init_trainsize) #
     for i in range(val_loader.size):
         image, gt, labels_tensor, name = val_loader.load_data()#
         gt = np.asarray(gt, np.float32)
@@ -236,7 +238,7 @@ def saveResult():
         image = image.cuda()
         labels_tensor = labels_tensor.cuda()
 
-        pred1, pred2= ESFPNet(image)
+        pred1, pred2 = ESFPNet(image)
         pred2 = np.squeeze(pred2)
         pred2 = torch.unsqueeze(pred2, 0)
         pred1 = F.upsample(pred1, size=gt.shape, mode='bilinear', align_corners=False)
@@ -263,7 +265,8 @@ def saveResult():
         correct_predictions = (thresholded_predictions == labels_tensor).sum(dim=0)
         total_correct_predictions += correct_predictions
 
-        
+        imageio.imwrite(args.log_dir + name, img_as_ubyte(pred1))
+
     print("dice_val_segmetation",100 * val/count)
     overall_accuracy = torch.mean(total_correct_predictions) / total
     print("acc_val_classification", 100 * overall_accuracy.item())

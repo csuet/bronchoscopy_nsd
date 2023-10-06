@@ -34,6 +34,8 @@ import argparse
 from pathlib import Path
 
 parser = argparse.ArgumentParser("Unet++ based model")
+parser.add_argument('--label_json_path', type=str, required=True,
+        help='Location of the data directory containing json labels file of each task after combining two json files.json')
 parser.add_argument('--path_imgs_test', type=str, required=True,
         help='Location of the images of test_phase for each tasks)')
 parser.add_argument('--path_masks_test', type=str, required=True,
@@ -41,17 +43,18 @@ parser.add_argument('--path_masks_test', type=str, required=True,
 parser.add_argument('--init_trainsize', type=int, default=352,
         help='Size of image for training (default = 352)')
 parser.add_argument('--saved_model', type=str, required=True,
-        help='load saved model')
+        help='load saved model') 
 parser.add_argument('--log_dir', type=str, required=True,
         help='save inference outputs') 
 
 args = parser.parse_args()
 
 class test_dataset:
-    def __init__(self, image_root, gt_root, testsize):
+    def __init__(self, image_root, gt_root,label_root,  testsize): #
         self.testsize = testsize
         self.images = [image_root + f for f in os.listdir(image_root) if f.endswith('.jpg') or f.endswith('.png')]
         self.gts = [gt_root + f for f in os.listdir(gt_root) if f.endswith('.tif') or f.endswith('.png') or f.endswith('.jpg')]
+        self.labels = label_root
         self.images = sorted(self.images)
         self.gts = sorted(self.gts)
         self.transform = transforms.Compose([
@@ -67,11 +70,23 @@ class test_dataset:
         image = self.rgb_loader(self.images[self.index])
         image = self.transform(image).unsqueeze(0)
         gt = self.binary_loader(self.gts[self.index])
-        name = self.images[self.index].split('/')[-1]
-        if name.endswith('.jpg'):
-            name = name.split('.jpg')[0] + '.png'
+        file_name = os.path.splitext(os.path.basename(self.images[self.index]))[0]
+        name_ = self.images[self.index].split('/')[-1]
+
+        with open(args.label_json_path, 'r') as f:
+            data = json.load(f)
+
+        label_list = ['Vocal cords', 'Main carina', 'Intermediate bronchus', 'Right superior lobar bronchus', 'Right inferior lobar bronchus', 'Right middle lobar bronchus', 'Left inferior lobar bronchus', 'Left superior lobar bronchus', 'Right main bronchus', 'Left main bronchus', 'Trachea']
+
+        label_name = [file['label_name'] for file in data if file['object_id'] == file_name]
+        
+        label_tensor = torch.zeros([11])
+        for name in label_name:
+            label_tensor[label_list.index(name)] = 1
+        
+
         self.index += 1
-        return image, gt, name
+        return image, gt, label_tensor, name_
 
     def rgb_loader(self, path):
         with open(path, 'rb') as f:
@@ -143,6 +158,15 @@ class UNet_2Plus(nn.Module):
                 init_weights(m, init_type='kaiming')
             elif isinstance(m, nn.BatchNorm2d):
                 init_weights(m, init_type='kaiming')
+        
+        self.norm1 = nn.BatchNorm2d(512, eps=1e-5)
+        self.Relu = nn.ReLU(inplace=True)
+        self.Dropout = nn.Dropout(p=0.3)
+        self.conv1 = nn.Conv2d(512, 256, 1, stride=1, padding=0)
+        self.norm2 = nn.BatchNorm2d(256, eps=1e-5)
+        self.conv2 = nn.Conv2d(256, 11, 1, stride=1, padding=0, bias=True) # 9 = number of classes
+        self.global_avg_pool = nn.AdaptiveAvgPool2d((1, 1))
+        self.softmax = nn.Softmax(dim = 1)
 
     def forward(self, inputs):
         # column : 0
@@ -156,6 +180,7 @@ class UNet_2Plus(nn.Module):
         maxpool3 = self.maxpool3(X_30)
         X_40 = self.conv40(maxpool3)
 
+        # segmentation
         # column : 1
         X_01 = self.up_concat01(X_10, X_00)
         X_11 = self.up_concat11(X_20, X_10)
@@ -177,28 +202,45 @@ class UNet_2Plus(nn.Module):
         final_3 = self.final_3(X_03)
         final_4 = self.final_4(X_04)
 
-        final = (final_1 + final_2 + final_3 + final_4) / 4
+        out1 = (final_1 + final_2 + final_3 + final_4) / 4
 
-        return final
+        out2 = self.global_avg_pool(X_30)
+        out2 = self.norm1(out2)
+        out2 = self.Relu(out2)
+        out2 = self.Dropout(out2)
+        out2 = self.conv1(out2)
+        out2 = self.norm2(out2)
+        out2 = self.Relu(out2)
+        out2 = self.conv2(out2)
+
+        return out1, out2
     
-
 def saveResult():
     os.makedirs(args.log_dir, exist_ok=True)
 
     ESFPNet = torch.load(args.save_model)
     ESFPNet.eval()
-
+    
+    total = 0
+    total_correct_predictions = torch.zeros(11).to(device)
     val = 0
     count = 0
+    threshold_class = 0.6
+
+
     smooth = 1e-4
-    val_loader = test_dataset(args.path_imgs_test + '/',args.path_masks_test + '/' ,args.init_trainsize) #
+    val_loader = test_dataset(args.path_imgs_test + '/',args.path_masks_test + '/', args.label_json_path ,args.init_trainsize) #
     for i in range(val_loader.size):
-        image, gt, name = val_loader.load_data()#
+        image, gt, labels_tensor, name = val_loader.load_data()#
         gt = np.asarray(gt, np.float32)
         gt /= (gt.max() + 1e-8)
-        image = image.cuda()
 
-        pred1= ESFPNet(image)
+        image = image.cuda()
+        labels_tensor = labels_tensor.cuda()
+
+        pred1, pred2= ESFPNet(image)
+        pred2 = np.squeeze(pred2)
+        pred2 = torch.unsqueeze(pred2, 0)
         pred1 = F.upsample(pred1, size=gt.shape, mode='bilinear', align_corners=False)
         pred1 = pred1.sigmoid()
         threshold = torch.tensor([0.5]).to(device)
@@ -215,14 +257,19 @@ def saveResult():
 
         a =  '{:.4f}'.format(loss)
         a = float(a)
-
         val = val + a
         count = count + 1
+        total = total + 1
+        labels_predicted = torch.sigmoid(pred2)
+        thresholded_predictions = (labels_predicted >= threshold_class).int()
+        correct_predictions = (thresholded_predictions == labels_tensor).sum(dim=0)
+        total_correct_predictions += correct_predictions
 
         imageio.imwrite(args.log_dir + name, img_as_ubyte(pred1))
-
         
     print("dice_val_segmetation",100 * val/count)
+    overall_accuracy = torch.mean(total_correct_predictions) / total
+    print("acc_val_classification", 100 * overall_accuracy.item())
 
 
         
