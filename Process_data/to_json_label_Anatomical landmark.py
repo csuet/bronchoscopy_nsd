@@ -36,19 +36,15 @@ try:
         existing_data = json.load(json_file)
 except json.decoder.JSONDecodeError:
     existing_data = []
-# Labels of Anatomical landmark
-label_id = ["b2cc70ea-01f6-4389-a3a3-6222600a445a", "ce08e883-ddd2-4639-aa05-9fdac022f545",
-            "c93010c7-b77b-44a8-8866-7511f989e97a", "7e3b10f1-c8d2-4bf3-8250-1dc5954f2de5",
-            "a9d13324-3c88-4135-88bf-7fbb4ccb4e13", "1578d8da-1512-479c-aed7-ef7cd4fb5541",
-            "c115009a-d19a-4337-9151-0dd20a2562e7", "e572ea16-52e8-4404-b866-363eb3f733ce",
-            "27cc98cd-7cad-4134-bfb5-b2c74af3326e", "ccca7aa2-1593-4e16-a436-38a5516ce433",
-            "0ac584fb-aaeb-44f1-9fa1-fafd973ddac8"]
+# Labels of Anatomical landmark = ["Vocal cords", "Main carina","Intermediate bronchus","Right superior lobar bronchus","Right inferior lobar bronchus","Right middle lobar bronchus","Left inferior lobar bronchus","Left superior lobar bronchus","Right main bronchus","Left main bronchus","Trachea"]
+label_Anatomical_landmark = ["b2cc70ea-01f6-4389-a3a3-6222600a445a", "ce08e883-ddd2-4639-aa05-9fdac022f545","c93010c7-b77b-44a8-8866-7511f989e97a", "7e3b10f1-c8d2-4bf3-8250-1dc5954f2de5","a9d13324-3c88-4135-88bf-7fbb4ccb4e13", "1578d8da-1512-479c-aed7-ef7cd4fb5541","c115009a-d19a-4337-9151-0dd20a2562e7", "e572ea16-52e8-4404-b866-363eb3f733ce","27cc98cd-7cad-4134-bfb5-b2c74af3326e", "ccca7aa2-1593-4e16-a436-38a5516ce433","0ac584fb-aaeb-44f1-9fa1-fafd973ddac8"]
+
 
 # Create json files contains image and labels of image
 for i in data_annots:
     for k in data_labels:
         for x in i['label_ids']:
-            if (x in label_id):
+            if (x in label_Anatomical_landmark):
                 if (k['id'] == x):
                     new_data = {
                         "object_id": i['object_id'],

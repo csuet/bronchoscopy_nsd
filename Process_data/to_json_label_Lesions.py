@@ -36,17 +36,15 @@ try:
 except json.decoder.JSONDecodeError:
     existing_data = []
 
-# Labels of Lesions
-label_id = ["a2ff1ceb-280b-410d-9ddc-82cb4a2e2ccb", "ff9241a0-a760-49d4-b34d-54f20ddedb0c",
-            "b96f104d-948d-4507-8b9c-c1dd0734b759", "4001669a-6f32-4a80-91f1-7c0766f19d29",
-            "cbed49c9-81ec-45d0-b619-a12c57c1770f", "3f2cce73-e832-4e8c-93f3-984b9e48baf3",
-            "cf97e212-5790-4ce0-92b0-5f585cfbbd8c"]
+# Labels of Lesions = ["Mucosal infiltration", "Mucosal edema of carina","Vascular growth","Muscosal erythema","Tumor","Anthrocosis","Stenosis"]
+label_Lesions = ["a2ff1ceb-280b-410d-9ddc-82cb4a2e2ccb", "ff9241a0-a760-49d4-b34d-54f20ddedb0c","b96f104d-948d-4507-8b9c-c1dd0734b759", "4001669a-6f32-4a80-91f1-7c0766f19d29","cbed49c9-81ec-45d0-b619-a12c57c1770f", "3f2cce73-e832-4e8c-93f3-984b9e48baf3","cf97e212-5790-4ce0-92b0-5f585cfbbd8c"]
+
 
 # Create json files contains image and labels of image
 for i in data_annots:
     for k in data_labels:
         for x in i['label_ids']:
-            if (x in label_id):
+            if (x in label_Lesions):
                 if (k['id'] == x):
                     new_data = {
                         "object_id": i['object_id'],
