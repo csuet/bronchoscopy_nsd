@@ -150,7 +150,7 @@ The script requires the following input parameters:
 
 Example scripts:
 ```bash
- python train_segment_ESFPNet.py --label_json_path ./data/labels_Anatomical_landmarks_final.json --dataset ./dataset/Anatomical_landmarks
+ python train_segment_ESFPNet.py --dataset ./dataset/Anatomical_landmarks
 ```
 #### Classification
 Use `train_clf_{Anatomical_Landmarks or Lung_lesions}_ESFPNet.py` file to train classification model of ESFPNet baseline.\
