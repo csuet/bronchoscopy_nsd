@@ -112,7 +112,7 @@ After all steps in the process data phase, your data structure looks like this:
 |-- labels_Anatomical_landmarks_final.json          <-- After 2nd step
 ```
 
-### Step 4: Execute the script `split_dataset.py` to perform the dataset split for images and masks related to Anatomical Landmarks or Lung Cancer Lesions.
+### Step 4: Execute the script `split_dataset.py` to perform the dataset split for images and masks related to Anatomical Landmarks or Lung Lesions.
 The script requires the following input parameters:
 + `Labels JSON file` (`labels_Lung_lesions_final.json` or `labels_Anatomical_landmarks_final.json`)
 + `Folder containing cancer images` (`./Lung_cancer/imgs`)
@@ -122,6 +122,10 @@ The script requires the following input parameters:
 
 The dataset will be split into training, validation, and test sets. The code organizes the outputs into a "dataset" folder, which includes subfolders for train, val, and test. Each of these subfolders comprise two subdirectories: one for images and another for masks.
 
+Example scripts:
+```bash
+python split_dataset.py --label_json_path ./data/labels_Lung_lesions_final.json --path_cancer_imgs ./data/Lung_cancer/imgs --path_non_cancer_imgs ./data/Non_lung_cancer/imgs --path_cancer_masks ./data/Lung_cancer/masks_Lung_lesions --path_non_cancer_masks ./data/Non_lung_cancer/masks_Lung_lesions
+```
 
 # Training with Unet2+ models
 
@@ -131,6 +135,7 @@ folder for training with `train_clf_*.py`. And using the output masks for traini
 - For the joint training of `train_joint_*.py`, it is required to use both the output label json and the output masks for training
 
 - The `infer_*.py` is used to extract the correspondent output from the trained model.
+
 # Training with ESFPNet models
 
 - Using the raw imgs input and the output label files in the `Process data`
