@@ -42,7 +42,9 @@ The script requires the following input JSON files:
 + `labels_Lung_lesions.json (non-cancer)`
 + `labels_Anatomical_landmarks.json (cancer)`
 + `labels_Anatomical_landmarks.json (non-cancer)`\
+
 Merge the labels for both cancer and non-cancer cases for each task.\
+
 Save the combined outputs in the following JSON files:
 + `labels_Lung_lesions_final.json`
 + `labels_Anatomical_landmarks_final.json`
