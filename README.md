@@ -32,14 +32,27 @@ architecture
 
 Example scripts:
 ```bash
-python to_json_label_Anatomical_landmark.py  --data_annots ./data/Data_paper_lung_cancer_test/annotation.json --data_objects ./data/Data_paper_lung_cancer_test/objects.json --data_labels ./data/Data_paper_lung_cancer_test/labels.json  --path_save ./data/Data_paper_lung_cancer_test/labels_Anatomical_landmarks.json
-
+python to_json_label_Anatomical_landmark.py  --data_annots ./data/Lung_cancer/annotation.json --data_objects ./data/Lung_cancer/objects.json --data_labels ./data/Lung_cancer/labels.json  --path_save ./data/Lung_cancer/labels_Anatomical_landmarks.json
 ```
 
-- Step 2: The output json from the Step 1 are used as input of the
-`combine_json.py` for combining into the full list of image labels.
+### Step 2: Execute the script `combine_json.py` to combine labels from both cancer and non-cancer cases for Lesions and Anatomical Landmarks tasks.
 
-- Step 3: Use `annots_to_mask.py` with the combined json
++ The script requires the following input JSON files:\
+`labels_Lung_cancer_lesions.json (cancer)`\
+`labels_Lung_cancer_lesions.json (non-cancer)`\\
+`labels_Anatomical_landmarks.json (cancer)`\
+`labels_Anatomical_landmarks.json (non-cancer)`
++ Merge the labels for both cancer and non-cancer cases for each task.
++ Save the combined outputs in the following JSON files:\
+`labels_Lung_cancer_lesions_final.json`\
+`labels_Anatomical_landmarks_final.json`
+
+Example scripts:
+```bash
+python combine_json.py --data_json_labels_cancer ./data/Lung_cancer/labels_Lung_cancer_lesions.json --data_json_labels_non_cancer ./data/Non_lung_cancer/labels_Lung_cancer_lesions.json --path_save ./data/labels_Lung_cancer_lesions_final.json
+```
+
+### Step 3: Use `annots_to_mask.py` with the combined json
 and the input images to create the correspondent masks.
 
 After all steps in the process data phase, your data structure looks like this:
