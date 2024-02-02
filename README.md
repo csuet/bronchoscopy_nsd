@@ -16,20 +16,19 @@ training unitask models and multitasks models with Unet2+
 architecture
 
 # Process data
-- Step 1: Utilize the script `to_json_label_{Anatomical landmark, Lessons}.py` for generating labels from datasets for both cancer and non-cancer types
+## Step 1: Utilize the script `to_json_label_{Anatomical landmark, Lessons}.py` for generating labels from datasets for both cancer and non-cancer types
 
-+ The input for the script includes the following files:
-`annotation.json`
-`labels.json`
-`objects.json`
++ The input for the script includes the following files:\
+`annotation.json`\
+`labels.json`\
+`objects.json`\
 + Generate two separate sets of labels for the tasks:
-`Anatomical Landmarks`
-`Lesions`
+`Anatomical Landmarks`\
+`Lesions`\
 + Categorize the labels based on cancer and non-cancer types.
 + Save the outputs in the following JSON files:
-
-`labels_Lung_cancer_lesions.json`
-`labels_Anatomical_landmarks.json`
+`labels_Lung_cancer_lesions.json`\
+`labels_Anatomical_landmarks.json`\
 
 Example scripts:
 ```bash
