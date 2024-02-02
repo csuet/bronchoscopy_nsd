@@ -18,15 +18,17 @@ architecture
 # Process data
 ### Step 1: Utilize the script `to_json_label_{Anatomical landmark, Lesions}.py` for generating labels from datasets for both cancer and non-cancer types
 
-The input for the script includes the following files:
+#### The input for the script includes the following files:
 + `annotation.json`
 + `labels.json`
-+ `objects.json`\
-Generate two separate sets of labels for the tasks:
++ `objects.json`
+
+#### Generate two separate sets of labels for the tasks:
 + `Anatomical Landmarks`
-+ `Lesions`\
-Categorize the labels based on cancer and non-cancer types.\
-Save the outputs in the following JSON files:
++ `Lesions`
+
+#### Categorize the labels based on cancer and non-cancer types.
+#### Save the outputs in the following JSON files:
 + `labels_Lung_lesions.json`
 + `labels_Anatomical_landmarks.json`
 
@@ -41,9 +43,9 @@ The script requires the following input JSON files:
 + `labels_Lung_lesions.json (cancer)`
 + `labels_Lung_lesions.json (non-cancer)`
 + `labels_Anatomical_landmarks.json (cancer)`
-+ `labels_Anatomical_landmarks.json (non-cancer)`\
++ `labels_Anatomical_landmarks.json (non-cancer)`
 
-Merge the labels for both cancer and non-cancer cases for each task.\
+Merge the labels for both cancer and non-cancer cases for each task.
 
 Save the combined outputs in the following JSON files:
 + `labels_Lung_lesions_final.json`
