@@ -27,6 +27,38 @@ by providing the metadata `annotation.json`, `labels.json`, `objects.json`
 - Step 3: Use `annots_to_mask.py` with the combined json
 and the input images to create the correspondent masks.
 
+After all steps in the process data phase, your data structure looks like this:
+
+`
+|-- Cancer
+|   |-- imgs
+|   |   |-- images
+|   |-- masks_Lung_cancer_lesions
+|   |   |-- masks
+|   |-- masks_Anatomical_landmarks
+|   |   |-- masks
+|   |-- labels_Lung_cancer_lesions.json
+|   |-- labels_Anatomical_landmarks.json
+|   |-- annotations.json
+|   |-- objects.json
+|   |-- labels.json
+|-- Non-Cancer
+|   |-- imgs
+|   |   |-- images
+|   |-- masks_Lung_cancer_lesions
+|   |   |-- masks
+|   |-- masks_Anatomical_landmarks
+|   |   |-- masks
+|   |-- labels_Lung_cancer_lesions.json
+|   |-- labels_Anatomical_landmarks.json
+|   |-- annotations.json
+|   |-- objects.json
+|   |-- labels.json
+|-- labels_Lung_cancer_lesions_final.json
+|-- labels_Anatomical_landmarks_final.json
+`
+
+
 # Training with Unet2+ models
 
 - Using the raw imgs input and the output label files in the `Process data`
