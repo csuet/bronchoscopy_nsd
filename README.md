@@ -18,17 +18,17 @@ architecture
 # Process data
 ### Step 1: Utilize the script `to_json_label_{Anatomical landmark, Lesions}.py` for generating labels from datasets for both cancer and non-cancer types
 
-+ The input for the script includes the following files:\
-`annotation.json`\
-`labels.json`\
-`objects.json`
-+ Generate two separate sets of labels for the tasks:\
-`Anatomical Landmarks`\
-`Lesions`
-+ Categorize the labels based on cancer and non-cancer types.
-+ Save the outputs in the following JSON files:\
-`labels_Lung_lesions.json`\
-`labels_Anatomical_landmarks.json`
+The input for the script includes the following files:
++ `annotation.json`
++ `labels.json`
++ `objects.json`
+Generate two separate sets of labels for the tasks:
++ `Anatomical Landmarks`
++ `Lesions`
+Categorize the labels based on cancer and non-cancer types.
+Save the outputs in the following JSON files:
++ `labels_Lung_lesions.json`
++ `labels_Anatomical_landmarks.json`
 
 Example scripts:
 ```bash
@@ -37,15 +37,15 @@ python to_json_label_Anatomical_landmark.py  --data_annots ./data/Lung_cancer/an
 
 ### Step 2: Execute the script `combine_json.py` to combine labels from both cancer and non-cancer cases for Lesions and Anatomical Landmarks tasks.
 
-+ The script requires the following input JSON files:\
-`labels_Lung_lesions.json (cancer)`\
-`labels_Lung_lesions.json (non-cancer)`\
-`labels_Anatomical_landmarks.json (cancer)`\
-`labels_Anatomical_landmarks.json (non-cancer)`
-+ Merge the labels for both cancer and non-cancer cases for each task.
-+ Save the combined outputs in the following JSON files:\
-`labels_Lung_lesions_final.json`\
-`labels_Anatomical_landmarks_final.json`
+The script requires the following input JSON files:
++ `labels_Lung_lesions.json (cancer)`
++ `labels_Lung_lesions.json (non-cancer)`
++ `labels_Anatomical_landmarks.json (cancer)`
++ `labels_Anatomical_landmarks.json (non-cancer)`
+Merge the labels for both cancer and non-cancer cases for each task.
+Save the combined outputs in the following JSON files:
++ `labels_Lung_lesions_final.json`
++ `labels_Anatomical_landmarks_final.json`
 
 Example scripts:
 ```bash
@@ -54,13 +54,13 @@ python combine_json.py --data_json_labels_cancer ./data/Lung_cancer/labels_Lung_
 
 ### Step 3: Run the script `annots_to_masks.py` to convert annotations into ground truth images for both Lesions and Anatomical Landmarks tasks, considering cancer and non-cancer types.
 
-+ The script requires the following inputs:\
-`annotation.json`\
-`labels.json`\
-`objects.json`\
-`Type of tasks` (specify either "lesions" or "anatomical landmarks")
-+ Based on the specified task type, generate masks (ground truth) for image segmentations (both cancer and non-cancer cases)
-+ Save the resulting masks as outputs, representing the ground truth for the segmentation of images.
+The script requires the following inputs:
++ `annotation.json`
++ `labels.json`
++ `objects.json`
++ `Type of tasks` (specify either "lesions" or "anatomical landmarks")
+Based on the specified task type, generate masks (ground truth) for image segmentations (both cancer and non-cancer cases)
+Save the resulting masks as outputs, representing the ground truth for the segmentation of images.
 ```bash
 |-- Lung_cancer
 |   |-- imgs
@@ -116,11 +116,11 @@ After all steps in the process data phase, your data structure looks like this:
 
 ### Step 4: Execute the script `split_dataset.py` to perform the dataset split for images and masks related to Anatomical Landmarks or Lung Cancer Lesions.
 The script requires the following input parameters:
-- `Labels JSON file` (`labels_Lung_lesions_final.json` or `labels_Anatomical_landmarks_final.json`)
-- `Folder containing cancer images` (`./Lung_cancer/imgs`)
-- `Folder containing cancer masks` (`./Lung_cancer/masks_Lung_lesions` or `./Lung_cancer/masks_Anatomical_landmarks`)
-- `Folder containing non-cancer images` (`./Non_lung_cancer/imgs`)
-- `Folder containing non-cancer masks` (`./Non_lung_cancer/masks_Lung_lesions` or `./Non_lung_cancer/masks_Anatomical_landmarks`)
++ `Labels JSON file` (`labels_Lung_lesions_final.json` or `labels_Anatomical_landmarks_final.json`)
++ `Folder containing cancer images` (`./Lung_cancer/imgs`)
++ `Folder containing cancer masks` (`./Lung_cancer/masks_Lung_lesions` or `./Lung_cancer/masks_Anatomical_landmarks`)
++ `Folder containing non-cancer images` (`./Non_lung_cancer/imgs`)
++ `Folder containing non-cancer masks` (`./Non_lung_cancer/masks_Lung_lesions` or `./Non_lung_cancer/masks_Anatomical_landmarks`)
 The dataset will be split into training, validation, and test sets
 Organize the outputs into a "dataset" folder, which includes subfolders for train, val, and test. Each of these subfolders comprise two subdirectories: one for images and another for masks.
 
