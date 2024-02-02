@@ -128,6 +128,10 @@ python split_dataset.py --label_json_path ./data/labels_Lung_lesions_final.json 
 ```
 
 # Training with ESFPNet models
+## Pretrained Model
+- Download the pretrained Mixtransformer from this link: [Pretrained Model](https://drive.google.com/drive/folders/1FLtIfDHDaowqyF_HhmORFMlRzCpB94hV?usp=sharing)
+- Put the pretrained models under "Pretrained" folder
+
 ## Training
 ### Multitasks models
 
