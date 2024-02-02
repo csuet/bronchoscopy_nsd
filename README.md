@@ -198,11 +198,10 @@ The script requires the following input parameters:
 + `Folder containing images of test dataset` (`./dataset/Anatomical_landmarks/test/imgs or ./dataset/Lung_lesions/test/imgs`)
 + `Folder containing masks of test dataset` (`./dataset/Anatomical_landmarks/test/imgs or ./dataset/Lung_lesions/test/imgs`)
 + `Path to saved-model`(`./SaveModel/Anatomical_landmarks/Classification_model.pt`,...)
-+ `Path to save output images` (`./output_dir`)
 
 Example scripts:
 ```bash
- python infer_joint_Anatomical_Landmarks.py --label_json_path ./data/labels_Anatomical_landmarks_final.json --path_imgs_test ./dataset/Anatomical_landmarks/test/imgs --path_masks_test ./dataset/Anatomical_landmarks/test/masks --saved_model ./SaveModel/Anatomical_landmarks/Classification_model.pt --log_dir ./output_dir
+ python infer_joint_Anatomical_Landmarks.py --label_json_path ./data/labels_Anatomical_landmarks_final.json --path_imgs_test ./dataset/Anatomical_landmarks/test/imgs --path_masks_test ./dataset/Anatomical_landmarks/test/masks --saved_model ./SaveModel/Anatomical_landmarks/Classification_model.pt 
 ```
 
 # Training with Unet2+ models
