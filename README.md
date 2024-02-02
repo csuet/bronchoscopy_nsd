@@ -29,7 +29,7 @@ and the input images to create the correspondent masks.
 
 After all steps in the process data phase, your data structure looks like this:
 
-`
+```bash
 |-- Cancer
 |   |-- imgs
 |   |   |-- images
@@ -56,7 +56,7 @@ After all steps in the process data phase, your data structure looks like this:
 |   |-- labels.json
 |-- labels_Lung_cancer_lesions_final.json
 |-- labels_Anatomical_landmarks_final.json
-`
+```
 
 
 # Training with Unet2+ models
