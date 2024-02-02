@@ -23,11 +23,7 @@ The input for the script includes the following files:
 + `labels.json`
 + `objects.json`
 
-The code generates two separate sets of labels for the tasks and categorizes the labels based on cancer and non-cancer types:
-+ `Anatomical Landmarks`
-+ `Lesions`
-
-Then save the outputs in the following JSON files:
+The code generates two separate sets of labels for the tasks and categorizes the labels based on cancer and non-cancer types, then save the outputs in the following JSON files:
 + `labels_Lung_lesions.json`
 + `labels_Anatomical_landmarks.json`
 
@@ -62,7 +58,7 @@ The script requires the following inputs:
 + `Type of tasks` (specify either "lesions" or "anatomical landmarks")
 
 Based on the specified task type, generate masks (ground truth) for image segmentations (both cancer and non-cancer cases)\
-Save the resulting masks as outputs, representing the ground truth for the segmentation of images.\
+Save the resulting masks as outputs, representing the ground truth for the segmentation of images.
 ```bash
 |-- Lung_cancer
 |   |-- imgs
