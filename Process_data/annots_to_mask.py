@@ -18,7 +18,9 @@ parser.add_argument('--data_objects', type=str, required=True,
 parser.add_argument('--data_labels', type=str, required=True,
         help='Location of the data directory containing labels.json')
 parser.add_argument('--path_save', type=str, required=True,
-        help='Location of the saved file (In the same folder of imgs folder) (Recommend name: masks_Lung_cancer_lesions or masks_Anatomical_Landmarks))')
+        help='Location of the saved folder (Recommend name: masks_Lung_cancer_lesions or masks_Anatomical_Landmarks))')
+parser.add_argument('--type', type=str, required=True,
+        help='label_Anatomical_landmark or label_Lesions')
 args = parser.parse_args()
 
 path_annots = Path(args.data_annots)
@@ -43,6 +45,10 @@ label_Anatomical_landmark = ["b2cc70ea-01f6-4389-a3a3-6222600a445a", "ce08e883-d
 # Labels of Lesions = ["Mucosal infiltration", "Mucosal edema of carina","Vascular growth","Muscosal erythema","Tumor","Anthrocosis","Stenosis"]
 label_Lesions = ["a2ff1ceb-280b-410d-9ddc-82cb4a2e2ccb", "ff9241a0-a760-49d4-b34d-54f20ddedb0c","b96f104d-948d-4507-8b9c-c1dd0734b759", "4001669a-6f32-4a80-91f1-7c0766f19d29","cbed49c9-81ec-45d0-b619-a12c57c1770f", "3f2cce73-e832-4e8c-93f3-984b9e48baf3","cf97e212-5790-4ce0-92b0-5f585cfbbd8c"]
 
+if args.type == "label_Anatomical_landmark":
+    list_of_labels = label_Anatomical_landmark
+elif args.type == "label_Lesions":
+    list_of_labels = label_Lesions
 
 # Create ground truth for segmentation tasks
 for i in data_objects:
@@ -58,7 +64,7 @@ for i in data_objects:
             for l in data_annots:
                 if (l['object_id'] == k['image_id']):
                     for x in l['label_ids']:
-                        if x in label_Lesions:
+                        if x in list_of_labels:
                             for p in l['data']:
                                 shape_x.append(int(p['x']))
                                 shape_y.append(int(p['y']))
