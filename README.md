@@ -23,13 +23,11 @@ The input for the script includes the following files:
 + `labels.json`
 + `objects.json`
 
-Generate two separate sets of labels for the tasks:
+The code generates two separate sets of labels for the tasks and categorizes the labels based on cancer and non-cancer types:
 + `Anatomical Landmarks`
 + `Lesions`
 
-Categorize the labels based on cancer and non-cancer types.
-
-Save the outputs in the following JSON files:
+Then save the outputs in the following JSON files:
 + `labels_Lung_lesions.json`
 + `labels_Anatomical_landmarks.json`
 
@@ -46,9 +44,7 @@ The script requires the following input JSON files:
 + `labels_Anatomical_landmarks.json (cancer)`
 + `labels_Anatomical_landmarks.json (non-cancer)`
 
-Merge the labels for both cancer and non-cancer cases for each task.
-
-Save the combined outputs in the following JSON files:
+The code merge the labels for both cancer and non-cancer cases for each task and save the combined outputs in the following JSON files:
 + `labels_Lung_lesions_final.json`
 + `labels_Anatomical_landmarks_final.json`
 
@@ -128,8 +124,7 @@ The script requires the following input parameters:
 + `Folder containing non-cancer images` (`./Non_lung_cancer/imgs`)
 + `Folder containing non-cancer masks` (`./Non_lung_cancer/masks_Lung_lesions` or `./Non_lung_cancer/masks_Anatomical_landmarks`)
 
-The dataset will be split into training, validation, and test sets\
-Organize the outputs into a "dataset" folder, which includes subfolders for train, val, and test. Each of these subfolders comprise two subdirectories: one for images and another for masks.
+The dataset will be split into training, validation, and test sets. The code organizes the outputs into a "dataset" folder, which includes subfolders for train, val, and test. Each of these subfolders comprise two subdirectories: one for images and another for masks.
 
 
 # Training with Unet2+ models
