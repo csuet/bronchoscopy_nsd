@@ -54,7 +54,7 @@ python combine_json.py --data_json_labels_cancer ./data/Lung_cancer/labels_Lung_
 
 ### Step 3: Run the script `annots_to_masks.py` to convert annotations into ground truth images for both Lesions and Anatomical Landmarks tasks, considering cancer and non-cancer types.
 
-+ The script requires the following input files:\
++ The script requires the following inputs:\
 `annotation.json`\
 `labels.json`\
 `objects.json`\
