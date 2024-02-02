@@ -30,7 +30,7 @@ and the input images to create the correspondent masks.
 After all steps in the process data phase, your data structure looks like this:
 
 ```bash
-|-- Cancer
+|-- Lung_cancer
 |   |-- imgs
 |   |   |-- images
 |   |-- masks_Lung_cancer_lesions
@@ -42,7 +42,7 @@ After all steps in the process data phase, your data structure looks like this:
 |   |-- annotations.json
 |   |-- objects.json
 |   |-- labels.json
-|-- Non-Cancer
+|-- Non-lung_cancer
 |   |-- imgs
 |   |   |-- images
 |   |-- masks_Lung_cancer_lesions
