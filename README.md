@@ -147,10 +147,10 @@ Use `train_segment_ESFPNet.py` file to train segmentation model of ESFPNet basel
 The script requires the following input parameters:
 + `Label JSON file` (`labels_Lung_lesions_final.json` or `labels_Anatomical_landmarks_final.json`)
 + `Folder containing splitted dataset` (`./dataset/Anatomical_landmarks or ./dataset/Lung_lesions`)
-
++ `Task for saved model` (`Anatomical_landmarks` or `Lung_lesions`)
 Example scripts:
 ```bash
- python train_segment_ESFPNet.py --dataset ./dataset/Anatomical_landmarks
+ python train_segment_ESFPNet.py --dataset ./dataset/Anatomical_landmarks  --task Anatomical_landmarks
 ```
 #### Classification
 Use `train_clf_{Anatomical_Landmarks or Lung_lesions}_ESFPNet.py` file to train classification model of ESFPNet baseline.\
