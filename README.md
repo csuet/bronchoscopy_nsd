@@ -127,21 +127,85 @@ Example scripts:
 python split_dataset.py --label_json_path ./data/labels_Lung_lesions_final.json --path_cancer_imgs ./data/Lung_cancer/imgs --path_non_cancer_imgs ./data/Non_lung_cancer/imgs --path_cancer_masks ./data/Lung_cancer/masks_Lung_lesions --path_non_cancer_masks ./data/Non_lung_cancer/masks_Lung_lesions
 ```
 
-# Training with Unet2+ models
-
-- Using the raw imgs input and the output label files in the `Process data`
-folder for training with `train_clf_*.py`. And using the output masks for training with `train_segment_Unet2+.py`
-
-- For the joint training of `train_joint_*.py`, it is required to use both the output label json and the output masks for training
-
-- The `infer_*.py` is used to extract the correspondent output from the trained model.
-
 # Training with ESFPNet models
+## Training
+### Multitasks models
 
-- Using the raw imgs input and the output label files in the `Process data`
-folder for training with `train_clf_*.py`. And using the output masks for training with `train_segment_ESFPNet.py`
+Use `train_joint_{Anatomical_Landmarks or Lung_lesions}_ESFPNet.py` file to train joint model of ESFPNet baseline.\
+The script requires the following input parameters:
++ `Label JSON file` (`labels_Lung_lesions_final.json` or `labels_Anatomical_landmarks_final.json`)
++ `Folder containing splitted dataset` (`./dataset/Anatomical_landmarks or ./dataset/Lung_lesions`)
 
-- For the joint training of `train_joint_*.py`, it is required to use both the output label json and the output masks for training
+Example scripts:
+```bash
+python train_joint_Anatomical_Landmarks_ESFPNet.py --label_json_path ./data/labels_Anatomical_landmarks_final.json --dataset_root ./dataset/Anatomical_landmarks
+```
 
-- The `infer_*.py` is used to extract the correspondent output from the trained model.
+### Unitask models
+#### Segmentation
+Use `train_segment_ESFPNet.py` file to train segmentation model of ESFPNet baseline.\
+The script requires the following input parameters:
++ `Label JSON file` (`labels_Lung_lesions_final.json` or `labels_Anatomical_landmarks_final.json`)
++ `Folder containing splitted dataset` (`./dataset/Anatomical_landmarks or ./dataset/Lung_lesions`)
+
+Example scripts:
+```bash
+ python train_segment_ESFPNet.py --label_json_path ./data/labels_Anatomical_landmarks_final.json --dataset_root ./dataset/Anatomical_landmarks
+```
+#### Classification
+Use `train_clf_{Anatomical_Landmarks or Lung_lesions}_ESFPNet.py` file to train classification model of ESFPNet baseline.\
+The script requires the following input parameters:
++ `Label JSON file` (`labels_Lung_lesions_final.json` or `labels_Anatomical_landmarks_final.json`)
++ `Folder containing splitted dataset` (`./dataset/Anatomical_landmarks or ./dataset/Lung_lesions`)
+
+Example scripts:
+```bash
+python train_clf_Anatomical_Landmarks_ESFPNet.py --label_json_path ./data/labels_Anatomical_landmarks_final.json --dataset_root ./dataset/Anatomical_landmarks
+```
+## Inference
+### Multitasks models
+Use `infer_joint_{Anatomical_Landmarks or Lung_lesions}.py` file to perform inference on joint model of ESFPNet baseline.\
+The script requires the following input parameters:
++ `Label JSON file` (`labels_Lung_lesions_final.json` or `labels_Anatomical_landmarks_final.json`)
++ `Folder containing images of test dataset` (`./dataset/Anatomical_landmarks/test/imgs or ./dataset/Lung_lesions/test/imgs`)
++ `Folder containing masks of test dataset` (`./dataset/Anatomical_landmarks/test/imgs or ./dataset/Lung_lesions/test/imgs`)
++ `Path to saved-model`(`./SaveModel/Anatomical_Landmarks_multimodel/Mean_best.pt`,...)
++ `Path to save output images` (`./output_dir`)
+
+Example scripts:
+```bash
+ python infer_joint_Anatomical_Landmarks.py --label_json_path ./data/labels_Anatomical_landmarks_final.json --path_imgs_test ./dataset/Anatomical_landmarks/test/imgs --path_masks_test ./dataset/Anatomical_landmarks/test/masks --saved_model ./SaveModel/Anatomical_Landmarks_multimodel/Mean_best.pt --log_dir ./output_dir
+```
+
+### Unitask models
+#### Segmentation
+Use ` infer_segment.py` file to perform inference on segmentation model of ESFPNet baseline.\
+The script requires the following input parameters:
++ `Folder containing images of test dataset` (`./dataset/Anatomical_landmarks/test/imgs or ./dataset/Lung_lesions/test/imgs`)
++ `Folder containing masks of test dataset` (`./dataset/Anatomical_landmarks/test/imgs or ./dataset/Lung_lesions/test/imgs`)
++ `Path to saved-model`(`./SaveModel/Anatomical_landmarks/Segmentation_model.pt`,...)
++ `Path to save output images` (`./output_dir`)
+
+Example scripts:
+```bash
+ python infer_segment.py.py --path_imgs_test ./dataset/Anatomical_landmarks/test/imgs --path_masks_test ./dataset/Anatomical_landmarks/test/masks --saved_model ./SaveModel/Anatomical_landmarks/Segmentation_model.pt --log_dir ./output_dir
+```
+
+#### Classification
+Use `infer_clf_{Anatomical_Landmarks or Lung_lesions}.py` file to perform inference on classification model of ESFPNet baseline.\
+The script requires the following input parameters:
++ `Label JSON file` (`labels_Lung_lesions_final.json` or `labels_Anatomical_landmarks_final.json`)
++ `Folder containing images of test dataset` (`./dataset/Anatomical_landmarks/test/imgs or ./dataset/Lung_lesions/test/imgs`)
++ `Folder containing masks of test dataset` (`./dataset/Anatomical_landmarks/test/imgs or ./dataset/Lung_lesions/test/imgs`)
++ `Path to saved-model`(`./SaveModel/Anatomical_landmarks/Classification_model.pt`,...)
++ `Path to save output images` (`./output_dir`)
+
+Example scripts:
+```bash
+ python infer_joint_Anatomical_Landmarks.py --label_json_path ./data/labels_Anatomical_landmarks_final.json --path_imgs_test ./dataset/Anatomical_landmarks/test/imgs --path_masks_test ./dataset/Anatomical_landmarks/test/masks --saved_model ./SaveModel/Anatomical_landmarks/Classification_model.pt --log_dir ./output_dir
+```
+
+# Training with Unet2+ models
+Using the same scripts as the ESFPNet based model.
+
 
