@@ -116,11 +116,11 @@ After all steps in the process data phase, your data structure looks like this:
 
 ### Step 4: Execute the script `split_dataset.py` to perform the dataset split for images and masks related to Anatomical Landmarks or Lung Cancer Lesions.
 + The script requires the following input parameters:\
-`Labels JSON file` (`labels_Lung_lesions_final.json` or `labels_Anatomical_landmarks_final.json`)\
-`Folder containing cancer images` (`./Lung_cancer/imgs`)\
-`Folder containing cancer masks` (`./Lung_cancer/masks_Lung_lesions` or `./Lung_cancer/masks_Anatomical_landmarks`)\
-`Folder containing non-cancer images` (`./Non_lung_cancer/imgs`)\
-`Folder containing non-cancer masks` (`./Non_lung_cancer/masks_Lung_lesions` or `./Non_lung_cancer/masks_Anatomical_landmarks`)
+- `Labels JSON file` (`labels_Lung_lesions_final.json` or `labels_Anatomical_landmarks_final.json`)\
+- `Folder containing cancer images` (`./Lung_cancer/imgs`)\
+- `Folder containing cancer masks` (`./Lung_cancer/masks_Lung_lesions` or `./Lung_cancer/masks_Anatomical_landmarks`)\
+- `Folder containing non-cancer images` (`./Non_lung_cancer/imgs`)\
+- `Folder containing non-cancer masks` (`./Non_lung_cancer/masks_Lung_lesions` or `./Non_lung_cancer/masks_Anatomical_landmarks`)
 + The dataset will be split into training, validation, and test sets
 + Organize the outputs into a "dataset" folder, which includes subfolders for train, val, and test. Each of these subfolders comprise two subdirectories: one for images and another for masks.
 
