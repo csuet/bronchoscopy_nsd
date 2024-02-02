@@ -39,7 +39,7 @@ python to_json_label_Anatomical_landmark.py  --data_annots ./data/Lung_cancer/an
 
 + The script requires the following input JSON files:\
 `labels_Lung_cancer_lesions.json (cancer)`\
-`labels_Lung_cancer_lesions.json (non-cancer)`\\
+`labels_Lung_cancer_lesions.json (non-cancer)`\
 `labels_Anatomical_landmarks.json (cancer)`\
 `labels_Anatomical_landmarks.json (non-cancer)`
 + Merge the labels for both cancer and non-cancer cases for each task.
@@ -52,8 +52,36 @@ Example scripts:
 python combine_json.py --data_json_labels_cancer ./data/Lung_cancer/labels_Lung_cancer_lesions.json --data_json_labels_non_cancer ./data/Non_lung_cancer/labels_Lung_cancer_lesions.json --path_save ./data/labels_Lung_cancer_lesions_final.json
 ```
 
-### Step 3: Use `annots_to_mask.py` with the combined json
-and the input images to create the correspondent masks.
+### Step 3: Run the script `annots_to_masks.py` to convert annotations into ground truth images for both Lesions and Anatomical Landmarks tasks, considering cancer and non-cancer types.
+
++ The script requires the following input files:\
+`annotation.json`\
+`labels.json`\
+`objects.json`\
+`Type of tasks` (specify either "lesions" or "anatomical landmarks")
++ Based on the specified task type, generate masks (ground truth) for image segmentations (both cancer and non-cancer cases)
++ Save the resulting masks as outputs, representing the ground truth for the segmentation of images.
+```bash
+|-- Lung_cancer
+|   |-- imgs
+|   |   |-- images
+|   |-- masks_Lung_cancer_lesions                  
+|   |   |-- masks
+|   |-- masks_Anatomical_landmarks                 
+|   |   |-- masks
+|-- Non_lung_cancer
+|   |-- imgs
+|   |   |-- images
+|   |-- masks_Lung_cancer_lesions                   
+|   |   |-- masks
+|   |-- masks_Anatomical_landmarks                  
+|   |   |-- masks
+```
+
+Example scripts:
+```bash
+python annots_to_mask.py --data_annots ./data/Lung_cancer/annotation.json --data_objects ./data/Lung_cancer/objects.json --data_labels ./data/Lung_cancer/labels.json --path_save ./data/Lung_cancer/masks_Lung_cancer_lesions --type label_Lesions
+```
 
 After all steps in the process data phase, your data structure looks like this:
 
